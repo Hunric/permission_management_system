@@ -1,0 +1,22 @@
+server:
+  port: 8081 # 此服务的端口
+
+spring:
+  application:
+    name: permission-service # 用于 Nacos 服务发现的服务名
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848 # Nacos 服务器地址
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/permission_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none # 我们已经创建了表
+    show-sql: true

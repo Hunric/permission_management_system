@@ -1,0 +1,77 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: user-service
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+    # Seata 配置
+    alibaba:
+      seata:
+        tx-service-group: "user_tx_group" # 必须与 Seata 服务器配置匹配
+        # 在 Seata 1.5+ 上，可能需要一个 file.conf 文件，但这个 starter 简化了它。
+
+# ShardingSphere JDBC 配置
+spring.shardingsphere:
+  mode:
+    type: Cluster # 生产环境使用 Cluster 模式，开发环境使用 Standalone
+    repository:
+      type: Nacos
+      props:
+        server-lists: localhost:8848
+        namespace: #  Nacos 命名空间（如果有）
+  # 定义数据源
+  datasource:
+    names: db0, db1
+    db0:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      jdbc-url: jdbc:mysql://localhost:3306/user_db_0
+      username: root
+      password: root
+    db1:
+      type: com.zaxxer.hikari.HikariDataSource
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      jdbc-url: jdbc:mysql://localhost:3306/user_db_1
+      username: root
+      password: root
+
+  # 定义分片规则
+  rules:
+    sharding:
+      tables:
+        users: # 逻辑表名
+          actual-data-nodes: db${0..1}.users_${0..1} # 映射到 db0.users_0, db0.users_1, db1.users_0, db1.users_1
+          table-strategy:
+            standard:
+              sharding-column: user_id
+              sharding-algorithm-name: users_table_alg
+          database-strategy:
+            standard:
+              sharding-column: user_id
+              sharding-algorithm-name: users_db_alg
+          key-generate-strategy:
+            column: user_id
+            key-generator-name: snowflake # 使用 Snowflake 获取分布式 ID
+
+      # 定义分片算法
+      sharding-algorithms:
+        users_db_alg:
+          type: INLINE
+          props:
+            algorithm-expression: db${user_id % 2}
+        users_table_alg:
+          type: INLINE
+          props:
+            algorithm-expression: users_${user_id % 2}
+        snowflake:
+          type: SNOWFLAKE
+
+# 为清晰起见，默认禁用 Feign 的 Hystrix
+feign:
+  hystrix:
+    enabled: false
