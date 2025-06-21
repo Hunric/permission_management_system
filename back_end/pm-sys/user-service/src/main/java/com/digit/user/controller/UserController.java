@@ -1,8 +1,10 @@
 package com.digit.user.controller;
 
 import com.digit.user.dto.ApiResponse;
+import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserRegisterDTO;
 import com.digit.user.service.UserService;
+import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserRegisterVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,18 +44,20 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserRegisterVO>> register(@Valid @RequestBody UserRegisterDTO userRegisterDTO) {
         log.info("User registration request for username: {}", userRegisterDTO.getUsername());
         
-        try {
-            UserRegisterVO result = userService.register(userRegisterDTO);
-            ApiResponse<UserRegisterVO> response = ApiResponse.created("User registration successful", result);
-            return ResponseEntity.status(201).body(response);
-        } catch (IllegalArgumentException e) {
-            log.warn("Registration failed: {}", e.getMessage());
-            ApiResponse<UserRegisterVO> response = ApiResponse.conflict(e.getMessage());
-            return ResponseEntity.status(409).body(response);
-        } catch (Exception e) {
-            log.error("Registration failed due to system error", e);
-            ApiResponse<UserRegisterVO> response = ApiResponse.internalServerError("Registration failed, please try again later");
-            return ResponseEntity.status(500).body(response);
-        }
+        UserRegisterVO result = userService.register(userRegisterDTO);
+        ApiResponse<UserRegisterVO> response = ApiResponse.created("用户注册成功", result);
+        return ResponseEntity.status(201).body(response);
+    }
+    
+    /**
+     * User login endpoint
+     */
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<UserLoginVO>> login(@Valid @RequestBody UserLoginDTO userLoginDTO) {
+        log.info("User login request for username: {}", userLoginDTO.getUsername());
+        
+        UserLoginVO result = userService.login(userLoginDTO);
+        ApiResponse<UserLoginVO> response = ApiResponse.success("登录成功", result);
+        return ResponseEntity.ok(response);
     }
 }

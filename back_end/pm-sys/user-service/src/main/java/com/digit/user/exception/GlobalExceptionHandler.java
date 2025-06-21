@@ -92,6 +92,72 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle user not found exception
+     */
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiResponse<String>> handleUserNotFoundException(UserNotFoundException e) {
+        log.warn("User not found: {}", e.getMessage());
+        
+        ApiResponse<String> response = ApiResponse.notFound(e.getMessage());
+        return ResponseEntity.status(HttpStatusCode.NOT_FOUND.getCode()).body(response);
+    }
+    
+    /**
+     * Handle authentication exception
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiResponse<String>> handleAuthenticationException(AuthenticationException e) {
+        log.warn("Authentication failed: {}", e.getMessage());
+        
+        ApiResponse<String> response = ApiResponse.unauthorized(e.getMessage());
+        return ResponseEntity.status(HttpStatusCode.UNAUTHORIZED.getCode()).body(response);
+    }
+    
+    /**
+     * Handle user already exists exception
+     */
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<String>> handleUserAlreadyExistsException(UserAlreadyExistsException e) {
+        log.warn("User already exists: {}", e.getMessage());
+        
+        ApiResponse<String> response = ApiResponse.conflict(e.getMessage());
+        return ResponseEntity.status(HttpStatusCode.CONFLICT.getCode()).body(response);
+    }
+    
+    /**
+     * Handle business exception
+     */
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<String>> handleBusinessException(BusinessException e) {
+        log.warn("Business exception: {}", e.getMessage());
+        
+        ApiResponse<String> response = ApiResponse.badRequest(e.getMessage());
+        return ResponseEntity.status(HttpStatusCode.BAD_REQUEST.getCode()).body(response);
+    }
+    
+    /**
+     * Handle illegal argument exception
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<String>> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("Illegal argument: {}", e.getMessage());
+        
+        ApiResponse<String> response = ApiResponse.badRequest(e.getMessage());
+        return ResponseEntity.status(HttpStatusCode.BAD_REQUEST.getCode()).body(response);
+    }
+    
+    /**
+     * Handle runtime exception
+     */
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ApiResponse<String>> handleRuntimeException(RuntimeException e) {
+        log.error("Runtime exception occurred: {}", e.getMessage(), e);
+        
+        ApiResponse<String> response = ApiResponse.internalServerError("系统异常，请稍后重试");
+        return ResponseEntity.status(HttpStatusCode.INTERNAL_SERVER_ERROR.getCode()).body(response);
+    }
+    
+    /**
      * Handle generic exception
      */
     @ExceptionHandler(Exception.class)

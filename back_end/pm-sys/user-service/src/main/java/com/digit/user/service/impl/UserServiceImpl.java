@@ -1,13 +1,19 @@
 package com.digit.user.service.impl;
 
+import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserRegisterDTO;
 import com.digit.user.dto.OperationLogMessage;
 import com.digit.user.entity.User;
+import com.digit.user.exception.AuthenticationException;
+import com.digit.user.exception.UserAlreadyExistsException;
+import com.digit.user.exception.UserNotFoundException;
 import com.digit.user.repository.UserRepository;
 import com.digit.user.rcp.PermissionFeignClient;
 import com.digit.user.service.UserService;
+import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserRegisterVO;
 import com.digit.user.util.IpAddressUtil;
+import com.digit.user.util.JwtUtil;
 // import com.digit.user.util.ShardingSphereIdGenerator;
 
 import org.springframework.stereotype.Service;
@@ -33,6 +39,7 @@ public class UserServiceImpl implements UserService {
     private final PermissionFeignClient permissionFeignClient;
     private final RocketMQTemplate rocketMQTemplate;
     private final BCryptPasswordEncoder passwordEncoder;// 需要创建安全配置类
+    private final JwtUtil jwtUtil;
     // private final ShardingSphereIdGenerator idGenerator;
     
     /**
@@ -56,7 +63,7 @@ public class UserServiceImpl implements UserService {
             log.debug("步骤 1: 检查用户名是否已存在");
             if (userRepository.existsByUsername(userRegisterDTO.getUsername())) {
                 log.warn("用户名已存在: {}", userRegisterDTO.getUsername());
-                throw new IllegalArgumentException("用户名已存在");
+                throw UserAlreadyExistsException.forUsername(userRegisterDTO.getUsername());
             }
             
             // 步骤 2: 对密码进行加密
@@ -107,6 +114,118 @@ public class UserServiceImpl implements UserService {
             // 2. 回滚在 permission_db 中插入的用户角色关系
             throw e;
         }
+    }
+    
+    /**
+     * 用户登录实现
+     * 按照以下步骤执行：
+     * 1. 根据用户名查询用户信息
+     * 2. 验证密码是否正确
+     * 3. 生成JWT令牌
+     * 4. 异步发送登录日志消息
+     * 5. 返回登录响应信息
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public UserLoginVO login(UserLoginDTO userLoginDTO) {
+        log.info("用户登录请求: {}", userLoginDTO.getUsername());
+        
+        try {
+            // 步骤 1: 根据用户名查询用户信息
+            log.debug("步骤 1: 查询用户信息，用户名: {}", userLoginDTO.getUsername());
+            User user = userRepository.findByUsername(userLoginDTO.getUsername())
+                    .orElseThrow(() -> {
+                        log.warn("登录失败：用户不存在，用户名: {}", userLoginDTO.getUsername());
+                        return new AuthenticationException("用户名或密码错误");
+                    });
+            
+            // 步骤 2: 验证密码是否正确
+            log.debug("步骤 2: 验证密码，用户ID: {}", user.getUserId());
+            if (!passwordEncoder.matches(userLoginDTO.getPassword(), user.getPassword())) {
+                log.warn("登录失败：密码错误，用户ID: {}", user.getUserId());
+                throw new AuthenticationException("用户名或密码错误");
+            }
+            
+            // 步骤 3: 生成JWT令牌
+            log.debug("步骤 3: 生成JWT令牌，用户ID: {}", user.getUserId());
+            String token = jwtUtil.generateToken(user.getUserId(), user.getUsername());
+            Long expiresIn = jwtUtil.getExpiration();
+            
+            // 步骤 4: 异步发送登录日志消息
+            log.debug("步骤 4: 异步发送登录日志");
+            sendLoginLogAsync(user);
+            
+            // 步骤 5: 构建并返回登录响应信息
+            log.debug("步骤 5: 构建登录响应信息");
+            UserLoginVO result = UserLoginVO.builder()
+                    .token(token)
+                    .expiresIn(expiresIn)
+                    .userId(user.getUserId())
+                    .username(user.getUsername())
+                    .build();
+            
+            log.info("用户登录成功，用户ID: {}, 用户名: {}", user.getUserId(), user.getUsername());
+            return result;
+            
+        } catch (AuthenticationException e) {
+            // 认证失败，直接抛出
+            throw e;
+        } catch (Exception e) {
+            log.error("用户登录系统异常，用户名: {}, 错误: {}", userLoginDTO.getUsername(), e.getMessage(), e);
+            throw new RuntimeException("登录失败，请稍后重试", e);
+        }
+    }
+    
+    /**
+     * 异步发送登录日志消息
+     */
+    private void sendLoginLogAsync(User user) {
+        try {
+            // 使用工具类获取客户端真实IP地址
+            String clientIp = IpAddressUtil.getClientRealIp();
+            
+            // 获取分布式链路追踪ID
+            String traceId = getTraceId();
+            
+            // 构建操作详情JSON
+            String detail = buildLoginDetail(user);
+            
+            // 构建日志消息对象
+            OperationLogMessage logMessage = OperationLogMessage.createMessage(
+                user.getUserId(),
+                traceId,
+                "LOGIN",
+                clientIp,
+                detail
+            );
+            
+            // 发送到RocketMQ
+            rocketMQTemplate.convertAndSend("user-operation-log", logMessage);
+            log.debug("用户登录日志消息发送成功，用户ID: {}, IP: {}, TraceID: {}", 
+                     user.getUserId(), clientIp, traceId);
+            
+        } catch (Exception e) {
+            // 日志发送失败不影响主业务流程
+            log.warn("发送登录日志消息失败，用户ID: {}, 错误: {}", user.getUserId(), e.getMessage());
+        }
+    }
+    
+    /**
+     * 构建用户登录操作的详情JSON
+     * 
+     * @param user 用户实体
+     * @return 格式化的JSON字符串
+     */
+    private String buildLoginDetail(User user) {
+        StringBuilder detail = new StringBuilder();
+        detail.append("{");
+        detail.append("\"operation\":\"user_login\",");
+        detail.append("\"username\":\"").append(escapeJson(user.getUsername())).append("\",");
+        detail.append("\"user_id\":").append(user.getUserId()).append(",");
+        detail.append("\"login_time\":\"").append(java.time.LocalDateTime.now()).append("\"");
+        detail.append("}");
+        
+        return detail.toString();
     }
     
     /**

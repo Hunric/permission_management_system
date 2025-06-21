@@ -1,6 +1,8 @@
 package com.digit.user.service;
 
+import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserRegisterDTO;
+import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserRegisterVO;
 
 /**
@@ -159,4 +161,93 @@ public interface UserService {
      *           </ul>
      */
     UserRegisterVO register(UserRegisterDTO userRegisterDTO);
+    
+    /**
+     * 用户登录服务方法
+     * 
+     * <p>处理用户登录认证的核心业务逻辑，包括身份验证、JWT令牌生成、
+     * 登录日志记录等操作。该方法是用户访问系统的主要入口。</p>
+     * 
+     * <p><strong>业务流程详述：</strong></p>
+     * <ol>
+     *   <li><strong>用户查询：</strong>
+     *       <ul>
+     *         <li>根据用户名在分片数据库中查询用户信息</li>
+     *         <li>ShardingSphere会广播查询到所有分片</li>
+     *         <li>验证用户是否存在</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>密码验证：</strong>
+     *       <ul>
+     *         <li>使用BCrypt验证提供的密码与存储的哈希值</li>
+     *         <li>确保密码匹配的安全性</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>JWT令牌生成：</strong>
+     *       <ul>
+     *         <li>创建包含用户ID和用户名的JWT令牌</li>
+     *         <li>设置合适的过期时间</li>
+     *         <li>使用安全的签名算法</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>异步日志记录：</strong>
+     *       <ul>
+     *         <li>向RocketMQ发送LOGIN事件消息</li>
+     *         <li>记录登录时间、IP地址等信息</li>
+     *         <li>用于审计和安全监控</li>
+     *       </ul>
+     *   </li>
+     * </ol>
+     * 
+     * <p><strong>安全特性：</strong></p>
+     * <ul>
+     *   <li>密码验证失败时不泄露具体原因</li>
+     *   <li>登录尝试次数限制（可扩展）</li>
+     *   <li>JWT令牌安全生成和管理</li>
+     *   <li>登录行为审计日志记录</li>
+     * </ul>
+     * 
+     * <p><strong>性能优化：</strong></p>
+     * <ul>
+     *   <li>数据库查询使用索引优化</li>
+     *   <li>JWT令牌生成采用高效算法</li>
+     *   <li>异步消息发送不阻塞响应</li>
+     *   <li>适当的缓存策略（可扩展）</li>
+     * </ul>
+     * 
+     * @param userLoginDTO 用户登录信息数据传输对象，包含以下必要字段：
+     *                     <ul>
+     *                       <li>{@code username} - 用户名，必填</li>
+     *                       <li>{@code password} - 密码，必填</li>
+     *                     </ul>
+     *                     
+     * @return {@link UserLoginVO} 用户登录成功响应对象，包含：
+     *         <ul>
+     *           <li>{@code token} - JWT访问令牌</li>
+     *           <li>{@code expiresIn} - 令牌过期时间（秒）</li>
+     *           <li>{@code userId} - 用户ID</li>
+     *           <li>{@code username} - 用户名</li>
+     *         </ul>
+     *         
+     * @throws IllegalArgumentException 当输入参数为null或无效时
+     * @throws AuthenticationException 当用户名或密码错误时
+     * @throws UserNotFoundException 当用户不存在时
+     * @throws SystemException 当系统异常导致登录失败时
+     * 
+     * @implNote 实现类需要确保：
+     *           <ul>
+     *             <li>密码验证的安全性（防止时序攻击）</li>
+     *             <li>JWT令牌的唯一性和安全性</li>
+     *             <li>登录日志的完整性和准确性</li>
+     *             <li>异常处理的统一性和友好性</li>
+     *           </ul>
+     * 
+     * @see UserLoginDTO 用户登录请求数据对象
+     * @see UserLoginVO 用户登录响应数据对象
+     * @see com.digit.user.util.JwtUtil JWT工具类
+     * 
+     * @since 1.0.0
+     * @apiNote 该方法支持高并发场景，但建议对单个用户的登录频率进行限制
+     */
+    UserLoginVO login(UserLoginDTO userLoginDTO);
 } 
