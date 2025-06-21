@@ -4,6 +4,8 @@ import com.digit.user.dto.ApiResponse;
 import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserRegisterDTO;
 import com.digit.user.service.UserService;
+import com.digit.user.util.SecurityUtil;
+import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserRegisterVO;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +60,27 @@ public class UserController {
         
         UserLoginVO result = userService.login(userLoginDTO);
         ApiResponse<UserLoginVO> response = ApiResponse.success("登录成功", result);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Get current user info endpoint
+     */
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserInfoVO>> getCurrentUserInfo() {
+        // 从Security上下文中获取当前用户ID
+        Long userId = SecurityUtil.getCurrentUserId();
+        
+        if (userId == null) {
+            log.warn("获取当前用户信息失败：用户未认证");
+            ApiResponse<UserInfoVO> response = ApiResponse.unauthorized("用户未认证");
+            return ResponseEntity.status(401).body(response);
+        }
+        
+        log.info("获取当前用户信息请求，用户ID: {}", userId);
+        
+        UserInfoVO result = userService.getUserInfo(userId);
+        ApiResponse<UserInfoVO> response = ApiResponse.success("获取用户信息成功", result);
         return ResponseEntity.ok(response);
     }
 }

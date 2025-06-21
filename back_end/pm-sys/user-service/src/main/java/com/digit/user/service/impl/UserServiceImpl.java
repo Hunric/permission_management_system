@@ -10,6 +10,7 @@ import com.digit.user.exception.UserNotFoundException;
 import com.digit.user.repository.UserRepository;
 import com.digit.user.rcp.PermissionFeignClient;
 import com.digit.user.service.UserService;
+import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserRegisterVO;
 import com.digit.user.util.IpAddressUtil;
@@ -343,6 +344,62 @@ public class UserServiceImpl implements UserService {
         detail.append("}");
         
         return detail.toString();
+    }
+    
+    /**
+     * 获取用户信息实现
+     * 根据用户ID查询用户详细信息，利用ShardingSphere分片键进行高效查询
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public UserInfoVO getUserInfo(Long userId) {
+        log.info("获取用户信息请求，用户ID: {}", userId);
+        
+        // 参数验证
+        if (userId == null) {
+            log.warn("获取用户信息失败：用户ID为空");
+            throw new IllegalArgumentException("用户ID不能为空");
+        }
+        
+        try {
+            // 使用分片键进行精确查询，ShardingSphere会直接路由到对应分片
+            log.debug("根据用户ID查询用户信息，用户ID: {}", userId);
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> {
+                        log.warn("用户不存在，用户ID: {}", userId);
+                        return new UserNotFoundException(userId);
+                    });
+            
+            // 转换为VO对象
+            UserInfoVO result = convertUserToInfoVO(user);
+            
+            log.info("获取用户信息成功，用户ID: {}, 用户名: {}", userId, user.getUsername());
+            return result;
+            
+        } catch (UserNotFoundException e) {
+            // 用户不存在异常，直接抛出
+            throw e;
+        } catch (Exception e) {
+            log.error("获取用户信息系统异常，用户ID: {}, 错误: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("获取用户信息失败，请稍后重试", e);
+        }
+    }
+    
+    /**
+     * 将User实体转换为UserInfoVO
+     * 
+     * @param user 用户实体
+     * @return 用户信息VO
+     */
+    private UserInfoVO convertUserToInfoVO(User user) {
+        return UserInfoVO.builder()
+                .userId(user.getUserId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .gmtCreate(user.getGmtCreate())
+                .gmtModified(user.getGmtModified())
+                .build();
     }
     
     /**

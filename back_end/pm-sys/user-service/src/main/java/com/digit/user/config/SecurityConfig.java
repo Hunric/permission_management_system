@@ -1,5 +1,6 @@
 package com.digit.user.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -7,6 +8,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * 安全配置类
@@ -19,7 +21,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
  */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
+    
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     
     /**
      * BCrypt密码编码器Bean
@@ -58,6 +63,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                     "/v3/api-docs/**"      // OpenAPI文档
                 ).permitAll()
                 // 其他所有请求都需要认证
-                .anyRequest().authenticated();
+                .anyRequest().authenticated()
+            .and()
+            // 添加JWT认证过滤器
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
     }
 } 

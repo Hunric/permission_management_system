@@ -2,6 +2,7 @@ package com.digit.user.service;
 
 import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserRegisterDTO;
+import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserRegisterVO;
 
@@ -250,4 +251,82 @@ public interface UserService {
      * @apiNote 该方法支持高并发场景，但建议对单个用户的登录频率进行限制
      */
     UserLoginVO login(UserLoginDTO userLoginDTO);
+    
+    /**
+     * 获取用户信息服务方法
+     * 
+     * <p>根据用户ID获取用户的详细信息，用于当前登录用户查看自己的个人资料。
+     * 该方法利用ShardingSphere的分片键特性，能够高效地直接路由到正确的数据库分片。</p>
+     * 
+     * <p><strong>业务流程详述：</strong></p>
+     * <ol>
+     *   <li><strong>参数验证：</strong>
+     *       <ul>
+     *         <li>验证用户ID的有效性</li>
+     *         <li>确保用户ID不为空</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>数据查询：</strong>
+     *       <ul>
+     *         <li>使用用户ID作为分片键进行精确查询</li>
+     *         <li>ShardingSphere直接路由到对应的物理表</li>
+     *         <li>避免广播查询，性能最优</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>数据转换：</strong>
+     *       <ul>
+     *         <li>将User实体转换为UserInfoVO</li>
+     *         <li>过滤敏感信息（如密码）</li>
+     *         <li>返回用户友好的数据格式</li>
+     *       </ul>
+     *   </li>
+     * </ol>
+     * 
+     * <p><strong>性能特性：</strong></p>
+     * <ul>
+     *   <li>精确路由：基于分片键的查询，直接定位到单个分片</li>
+     *   <li>索引优化：主键查询，使用聚簇索引，性能最佳</li>
+     *   <li>缓存友好：单条记录查询，适合缓存优化</li>
+     *   <li>网络开销最小：只访问一个数据库节点</li>
+     * </ul>
+     * 
+     * <p><strong>安全特性：</strong></p>
+     * <ul>
+     *   <li>敏感信息过滤：不返回密码等敏感字段</li>
+     *   <li>用户隔离：只能查询自己的信息</li>
+     *   <li>JWT验证：确保请求来自已认证用户</li>
+     * </ul>
+     * 
+     * @param userId 用户唯一标识符，必须是有效的已存在用户ID
+     *               
+     * @return {@link UserInfoVO} 用户信息响应对象，包含：
+     *         <ul>
+     *           <li>{@code userId} - 用户唯一标识符</li>
+     *           <li>{@code username} - 用户名</li>
+     *           <li>{@code email} - 邮箱地址（如果设置）</li>
+     *           <li>{@code phone} - 手机号码（如果设置）</li>
+     *           <li>{@code gmtCreate} - 账户创建时间</li>
+     *           <li>{@code gmtModified} - 最后修改时间</li>
+     *         </ul>
+     *         
+     * @throws IllegalArgumentException 当用户ID为null或无效时
+     * @throws UserNotFoundException 当指定的用户不存在时
+     * @throws DataAccessException 当数据库查询失败时
+     * 
+     * @implNote 实现类需要确保：
+     *           <ul>
+     *             <li>利用分片键优势进行高效查询</li>
+     *             <li>正确过滤敏感信息</li>
+     *             <li>适当的异常处理和日志记录</li>
+     *             <li>数据转换的准确性</li>
+     *           </ul>
+     * 
+     * @see UserInfoVO 用户信息响应数据对象
+     * @see com.digit.user.entity.User 用户实体类
+     * @see com.digit.user.repository.UserRepository 用户数据访问层
+     * 
+     * @since 1.0.0
+     * @apiNote 该方法性能优异，适合高频调用场景，建议结合缓存使用
+     */
+    UserInfoVO getUserInfo(Long userId);
 } 
