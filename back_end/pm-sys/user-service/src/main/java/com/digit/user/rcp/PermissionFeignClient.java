@@ -1,5 +1,6 @@
 package com.digit.user.rcp;
 
+import com.digit.user.dto.UserRoleResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -113,31 +114,6 @@ public interface PermissionFeignClient {
 }
 
 /**
- * 用户角色响应对象
- * 
- * <p>用于封装从权限服务返回的用户角色信息。</p>
- */
-class UserRoleResponse {
-    private String roleCode;
-    private String roleName;
-    
-    // Getters and Setters
-    public String getRoleCode() { return roleCode; }
-    public void setRoleCode(String roleCode) { this.roleCode = roleCode; }
-    
-    public String getRoleName() { return roleName; }
-    public void setRoleName(String roleName) { this.roleName = roleName; }
-    
-    @Override
-    public String toString() {
-        return "UserRoleResponse{" +
-                "roleCode='" + roleCode + '\'' +
-                ", roleName='" + roleName + '\'' +
-                '}';
-    }
-}
-
-/**
  * Feign客户端降级处理类
  * 
  * <p>当权限服务完全不可用时的降级处理实现。</p>
@@ -152,10 +128,10 @@ class PermissionFeignClientFallback implements PermissionFeignClient {
     @Override
     public UserRoleResponse getUserRole(Long userId) {
         // 返回默认的普通用户角色
-        UserRoleResponse response = new UserRoleResponse();
-        response.setRoleCode("user");
-        response.setRoleName("普通用户");
-        return response;
+        return UserRoleResponse.builder()
+                .roleCode("user")
+                .roleName("普通用户")
+                .build();
     }
     
     @Override

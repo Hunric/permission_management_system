@@ -66,6 +66,7 @@ public class InternalPermissionController {
             UserRoleResponse userRole = permissionService.getUserRole(userId);
             
             if (userRole == null) {
+                log.warn("用户未分配角色，用户ID: {}", userId);
                 return ResponseEntity.notFound().build();
             }
             

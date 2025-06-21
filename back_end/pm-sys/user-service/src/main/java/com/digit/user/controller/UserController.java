@@ -2,11 +2,13 @@ package com.digit.user.controller;
 
 import com.digit.user.dto.ApiResponse;
 import com.digit.user.dto.UserLoginDTO;
+import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
 import com.digit.user.service.UserService;
 import com.digit.user.util.SecurityUtil;
 import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
+import com.digit.user.vo.UserPageVO;
 import com.digit.user.vo.UserRegisterVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,6 +83,39 @@ public class UserController {
         
         UserInfoVO result = userService.getUserInfo(userId);
         ApiResponse<UserInfoVO> response = ApiResponse.success("获取用户信息成功", result);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Get users list with pagination endpoint (Admin/Super Admin only)
+     */
+    @GetMapping("/users")
+    public ResponseEntity<ApiResponse<UserPageVO>> getUsers(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String gmtCreateStart,
+            @RequestParam(required = false) String gmtCreateEnd) {
+        
+        log.info("分页查询用户列表请求，页码: {}, 每页大小: {}", page, size);
+        
+        // 构建查询参数对象
+        UserPageQueryDTO queryDTO = UserPageQueryDTO.builder()
+                .page(page)
+                .size(size)
+                .sort(sort)
+                .username(username)
+                .email(email)
+                .phone(phone)
+                .gmtCreateStart(gmtCreateStart)
+                .gmtCreateEnd(gmtCreateEnd)
+                .build();
+        
+        UserPageVO result = userService.getUsers(queryDTO);
+        ApiResponse<UserPageVO> response = ApiResponse.success("查询用户列表成功", result);
         return ResponseEntity.ok(response);
     }
 }

@@ -136,6 +136,17 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Handle security exception (permission denied)
+     */
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ApiResponse<String>> handleSecurityException(SecurityException e) {
+        log.warn("Security exception: {}", e.getMessage());
+        
+        ApiResponse<String> response = ApiResponse.forbidden(e.getMessage());
+        return ResponseEntity.status(HttpStatusCode.FORBIDDEN.getCode()).body(response);
+    }
+    
+    /**
      * Handle illegal argument exception
      */
     @ExceptionHandler(IllegalArgumentException.class)

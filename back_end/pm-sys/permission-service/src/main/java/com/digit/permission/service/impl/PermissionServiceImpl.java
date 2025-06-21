@@ -72,7 +72,6 @@ import java.util.Optional;
             log.info("成功为用户绑定默认角色，用户ID: {}, 角色: {}", userId, defaultRole.getRoleName());
             
         } catch (Exception e) {
-            // 当前的异常处理机制不够精确，需要优化
             log.error("为用户绑定默认角色失败，用户ID: {}, 错误: {}", userId, e.getMessage(), e);
             throw new RuntimeException("绑定默认角色失败: " + e.getMessage(), e);
         }
@@ -88,15 +87,52 @@ import java.util.Optional;
         try {
             Optional<Object[]> roleInfoOpt = userRoleRepository.findUserRoleInfo(userId);
             
-            // 按理来说，必须要保证每个用户都有角色，如果用户没有角色，则需要抛出异常
+            // 如果用户没有角色，返回null
             if (!roleInfoOpt.isPresent()) {
                 log.warn("用户未分配角色，用户ID: {}", userId);
                 return null;
             }
             
             Object[] roleInfo = roleInfoOpt.get();
-            String roleCode = (String) roleInfo[0];
-            String roleName = (String) roleInfo[1];
+            
+            // 调试信息：打印查询结果
+            log.debug("查询结果数组长度: {}", roleInfo.length);
+            for (int i = 0; i < roleInfo.length; i++) {
+                log.debug("数组元素[{}]: {} (类型: {})", i, roleInfo[i], roleInfo[i] != null ? roleInfo[i].getClass().getSimpleName() : "null");
+            }
+            
+            // 处理JPA返回结果的特殊情况
+            String roleCode = null;
+            String roleName = null;
+            
+            if (roleInfo.length == 2) {
+                // 正常情况：直接包含两个字段
+                roleCode = roleInfo[0] != null ? roleInfo[0].toString() : null;
+                roleName = roleInfo[1] != null ? roleInfo[1].toString() : null;
+            } else if (roleInfo.length == 1 && roleInfo[0] instanceof Object[]) {
+                // JPA包装情况：第一个元素是Object[]
+                Object[] innerArray = (Object[]) roleInfo[0];
+                if (innerArray.length >= 2) {
+                    roleCode = innerArray[0] != null ? innerArray[0].toString() : null;
+                    roleName = innerArray[1] != null ? innerArray[1].toString() : null;
+                } else {
+                    String errorMsg = String.format("内层数组长度不足，用户ID: %d, 内层数组长度: %d", userId, innerArray.length);
+                    log.error(errorMsg);
+                    throw new RuntimeException("用户角色数据异常: " + errorMsg);
+                }
+            } else {
+                String errorMsg = String.format("角色信息数据格式异常，用户ID: %d, 数组长度: %d", userId, roleInfo.length);
+                log.error(errorMsg);
+                throw new RuntimeException("用户角色数据异常: " + errorMsg);
+            }
+            
+            log.debug("解析后的角色信息 - roleCode: {}, roleName: {}", roleCode, roleName);
+            
+            if (roleCode == null || roleName == null || roleCode.trim().isEmpty() || roleName.trim().isEmpty()) {
+                String errorMsg = String.format("角色信息包含空值，用户ID: %d, roleCode: %s, roleName: %s", userId, roleCode, roleName);
+                log.error(errorMsg);
+                throw new RuntimeException("用户角色数据异常: " + errorMsg);
+            }
             
             UserRoleResponse response = UserRoleResponse.builder()
                     .roleCode(roleCode)
@@ -107,7 +143,6 @@ import java.util.Optional;
             return response;
             
         } catch (Exception e) {
-            // 按理来说，必须要保证每个用户都有角色，如果用户没有角色，则需要抛出异常
             log.error("查询用户角色信息失败，用户ID: {}, 错误: {}", userId, e.getMessage(), e);
             return null;
         }

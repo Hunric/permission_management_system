@@ -2,9 +2,11 @@ package com.digit.permission.repository;
 
 import com.digit.permission.entity.UserRole;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -51,5 +53,9 @@ public interface UserRoleRepository extends JpaRepository<UserRole, Long> {
      * @param userId 用户ID
      * @return 删除的记录数
      */
+    @Modifying
+    @Transactional
     int deleteByUserId(Long userId);
+    
+
 } 

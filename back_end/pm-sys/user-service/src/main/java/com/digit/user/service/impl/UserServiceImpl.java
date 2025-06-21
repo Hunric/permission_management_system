@@ -1,7 +1,9 @@
 package com.digit.user.service.impl;
 
 import com.digit.user.dto.UserLoginDTO;
+import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
+import com.digit.user.dto.UserRoleResponse;
 import com.digit.user.dto.OperationLogMessage;
 import com.digit.user.entity.User;
 import com.digit.user.exception.AuthenticationException;
@@ -10,8 +12,10 @@ import com.digit.user.exception.UserNotFoundException;
 import com.digit.user.repository.UserRepository;
 import com.digit.user.rcp.PermissionFeignClient;
 import com.digit.user.service.UserService;
+import com.digit.user.util.SecurityUtil;
 import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
+import com.digit.user.vo.UserPageVO;
 import com.digit.user.vo.UserRegisterVO;
 import com.digit.user.util.IpAddressUtil;
 import com.digit.user.util.JwtUtil;
@@ -26,9 +30,21 @@ import io.seata.spring.annotation.GlobalTransactional;
 import io.seata.core.context.RootContext;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.util.StringUtils;
+
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -402,6 +418,250 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
     
+    /**
+     * 分页查询用户列表实现
+     * 包含权限验证、参数处理、数据查询和结果转换
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public UserPageVO getUsers(UserPageQueryDTO queryDTO) {
+        log.info("分页查询用户列表请求，页码: {}, 每页大小: {}", queryDTO.getPage(), queryDTO.getSize());
+        
+        try {
+            // 步骤 1: 权限验证
+            validateAdminPermission();
+            
+            // 步骤 2: 参数验证和处理
+            validateQueryParameters(queryDTO);
+            
+            // 步骤 3: 构建分页和排序参数
+            Pageable pageable = buildPageable(queryDTO);
+            
+            // 步骤 4: 构建查询条件并执行查询
+            Page<User> userPage = executePageQuery(queryDTO, pageable);
+            
+            // 步骤 5: 转换结果并返回
+            UserPageVO result = convertToPageVO(userPage);
+            
+            log.info("分页查询用户列表成功，总记录数: {}, 总页数: {}", 
+                    result.getTotalElements(), result.getTotalPages());
+            return result;
+            
+        } catch (SecurityException e) {
+            log.warn("分页查询用户列表权限不足: {}", e.getMessage());
+            throw e;
+        } catch (IllegalArgumentException e) {
+            log.warn("分页查询用户列表参数错误: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("分页查询用户列表系统异常: {}", e.getMessage(), e);
+            throw new RuntimeException("查询用户列表失败，请稍后重试", e);
+        }
+    }
+    
+    /**
+     * 验证管理员权限
+     */
+    private void validateAdminPermission() {
+        // 获取当前用户ID
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        if (currentUserId == null) {
+            throw new SecurityException("用户未认证");
+        }
+        
+        try {
+            // 调用权限服务获取用户角色
+            log.debug("验证用户权限，用户ID: {}", currentUserId);
+            UserRoleResponse userRole = permissionFeignClient.getUserRole(currentUserId);
+            
+            if (userRole == null || userRole.getRoleCode() == null) {
+                throw new SecurityException("无法获取用户角色信息");
+            }
+            
+            // 检查是否为管理员或超级管理员
+            String roleCode = userRole.getRoleCode();
+            if (!"admin".equals(roleCode) && !"super_admin".equals(roleCode)) {
+                log.warn("用户权限不足，用户ID: {}, 角色: {}", currentUserId, roleCode);
+                throw new SecurityException("权限不足，需要管理员或超级管理员权限");
+            }
+            
+            log.debug("权限验证通过，用户ID: {}, 角色: {}", currentUserId, roleCode);
+            
+        } catch (Exception e) {
+            if (e instanceof SecurityException) {
+                throw e;
+            }
+            log.error("权限验证失败，用户ID: {}, 错误: {}", currentUserId, e.getMessage());
+            throw new SecurityException("权限验证失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 验证查询参数
+     */
+    private void validateQueryParameters(UserPageQueryDTO queryDTO) {
+        if (queryDTO.getPage() < 1) {
+            throw new IllegalArgumentException("页码必须大于0");
+        }
+        
+        if (queryDTO.getSize() < 1 || queryDTO.getSize() > 100) {
+            throw new IllegalArgumentException("每页大小必须在1-100之间");
+        }
+        
+        // 验证时间格式
+        if (StringUtils.hasText(queryDTO.getGmtCreateStart())) {
+            validateDateTimeFormat(queryDTO.getGmtCreateStart(), "创建时间开始");
+        }
+        
+        if (StringUtils.hasText(queryDTO.getGmtCreateEnd())) {
+            validateDateTimeFormat(queryDTO.getGmtCreateEnd(), "创建时间结束");
+        }
+    }
+    
+    /**
+     * 验证日期时间格式
+     */
+    private void validateDateTimeFormat(String dateTimeStr, String fieldName) {
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            LocalDateTime.parse(dateTimeStr, formatter);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException(fieldName + "格式错误，请使用 yyyy-MM-dd HH:mm:ss 格式");
+        }
+    }
+    
+    /**
+     * 构建分页和排序参数
+     */
+    private Pageable buildPageable(UserPageQueryDTO queryDTO) {
+        // 构建排序
+        Sort sort = buildSort(queryDTO.getSort());
+        
+        // 构建分页（注意：JPA的页码从0开始，而前端传入的从1开始）
+        return PageRequest.of(queryDTO.getPage() - 1, queryDTO.getSize(), sort);
+    }
+    
+    /**
+     * 构建排序参数
+     */
+    private Sort buildSort(String sortStr) {
+        if (!StringUtils.hasText(sortStr)) {
+            // 默认按创建时间降序排列
+            return Sort.by(Sort.Direction.DESC, "gmtCreate");
+        }
+        
+        List<Sort.Order> orders = new ArrayList<>();
+        
+        // 支持多个排序字段，用分号分隔
+        String[] sortParts = sortStr.split(";");
+        
+        for (String part : sortParts) {
+            String[] fieldAndDirection = part.trim().split(",");
+            
+            if (fieldAndDirection.length != 2) {
+                throw new IllegalArgumentException("排序格式错误，应为：字段名,方向");
+            }
+            
+            String field = fieldAndDirection[0].trim();
+            String direction = fieldAndDirection[1].trim();
+            
+            // 验证排序字段
+            validateSortField(field);
+            
+            // 验证排序方向
+            Sort.Direction sortDirection;
+            if ("asc".equalsIgnoreCase(direction)) {
+                sortDirection = Sort.Direction.ASC;
+            } else if ("desc".equalsIgnoreCase(direction)) {
+                sortDirection = Sort.Direction.DESC;
+            } else {
+                throw new IllegalArgumentException("排序方向错误，只支持 asc 或 desc");
+            }
+            
+            orders.add(new Sort.Order(sortDirection, field));
+        }
+        
+        return Sort.by(orders);
+    }
+    
+    /**
+     * 验证排序字段
+     */
+    private void validateSortField(String field) {
+        List<String> allowedFields = Arrays.asList(
+            "userId", "username", "email", "phone", "gmtCreate", "gmtModified"
+        );
+        
+        if (!allowedFields.contains(field)) {
+            throw new IllegalArgumentException("不支持的排序字段: " + field);
+        }
+    }
+    
+    /**
+     * 执行分页查询
+     */
+    private Page<User> executePageQuery(UserPageQueryDTO queryDTO, Pageable pageable) {
+        // 解析时间参数
+        Timestamp gmtCreateStart = parseTimestamp(queryDTO.getGmtCreateStart());
+        Timestamp gmtCreateEnd = parseTimestamp(queryDTO.getGmtCreateEnd());
+        
+        log.debug("执行分页查询，条件 - 用户名: {}, 邮箱: {}, 手机: {}, 创建时间: {} ~ {}", 
+                 queryDTO.getUsername(), queryDTO.getEmail(), queryDTO.getPhone(),
+                 gmtCreateStart, gmtCreateEnd);
+        
+        // 使用自定义查询方法
+        return userRepository.findUsersWithFilters(
+            StringUtils.hasText(queryDTO.getUsername()) ? queryDTO.getUsername() : null,
+            StringUtils.hasText(queryDTO.getEmail()) ? queryDTO.getEmail() : null,
+            StringUtils.hasText(queryDTO.getPhone()) ? queryDTO.getPhone() : null,
+            gmtCreateStart,
+            gmtCreateEnd,
+            pageable
+        );
+    }
+    
+    /**
+     * 解析时间字符串为Timestamp
+     */
+    private Timestamp parseTimestamp(String dateTimeStr) {
+        if (!StringUtils.hasText(dateTimeStr)) {
+            return null;
+        }
+        
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            LocalDateTime localDateTime = LocalDateTime.parse(dateTimeStr, formatter);
+            return Timestamp.valueOf(localDateTime);
+        } catch (Exception e) {
+            log.warn("时间格式解析失败: {}", dateTimeStr);
+            return null;
+        }
+    }
+    
+    /**
+     * 转换分页结果为VO
+     */
+    private UserPageVO convertToPageVO(Page<User> userPage) {
+        // 转换用户列表
+        List<UserInfoVO> userInfoList = userPage.getContent()
+                .stream()
+                .map(this::convertUserToInfoVO)
+                .collect(Collectors.toList());
+        
+        // 构建分页信息
+        return UserPageVO.builder()
+                .users(userInfoList)
+                .currentPage(userPage.getNumber() + 1) // 转换为前端的页码（从1开始）
+                .pageSize(userPage.getSize())
+                .totalElements(userPage.getTotalElements())
+                .totalPages(userPage.getTotalPages())
+                .isFirst(userPage.isFirst())
+                .isLast(userPage.isLast())
+                .hasPrevious(userPage.hasPrevious())
+                .hasNext(userPage.hasNext())
+                .build();
+    }
+
     /**
      * 转义JSON字符串中的特殊字符
      * 

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.sql.Timestamp;
 import java.util.Optional;
 import java.util.List;
 
@@ -136,4 +137,33 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT u FROM User u WHERE u.userId IN :userIds")
     List<User> findByUserIdIn(@Param("userIds") List<Long> userIds);
+    
+    /**
+     * 多条件分页查询用户列表
+     * 
+     * <p>支持用户名、邮箱、手机号的模糊查询和创建时间范围查询。
+     * 该查询会扫描所有分片，ShardingSphere会处理跨库跨表的复杂查询。</p>
+     * 
+     * @param username 用户名（模糊匹配，可为null）
+     * @param email 邮箱（模糊匹配，可为null）
+     * @param phone 手机号（模糊匹配，可为null）
+     * @param gmtCreateStart 创建时间开始范围（可为null）
+     * @param gmtCreateEnd 创建时间结束范围（可为null）
+     * @param pageable 分页参数
+     * @return 分页查询结果
+     */
+    @Query("SELECT u FROM User u WHERE " +
+           "(:username IS NULL OR LOWER(u.username) LIKE LOWER(CONCAT('%', :username, '%'))) AND " +
+           "(:email IS NULL OR LOWER(u.email) LIKE LOWER(CONCAT('%', :email, '%'))) AND " +
+           "(:phone IS NULL OR u.phone LIKE CONCAT('%', :phone, '%')) AND " +
+           "(:gmtCreateStart IS NULL OR u.gmtCreate >= :gmtCreateStart) AND " +
+           "(:gmtCreateEnd IS NULL OR u.gmtCreate <= :gmtCreateEnd)")
+    Page<User> findUsersWithFilters(
+            @Param("username") String username,
+            @Param("email") String email,
+            @Param("phone") String phone,
+            @Param("gmtCreateStart") Timestamp gmtCreateStart,
+            @Param("gmtCreateEnd") Timestamp gmtCreateEnd,
+            Pageable pageable
+    );
 } 

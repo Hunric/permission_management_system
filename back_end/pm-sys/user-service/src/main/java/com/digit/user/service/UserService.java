@@ -1,9 +1,11 @@
 package com.digit.user.service;
 
 import com.digit.user.dto.UserLoginDTO;
+import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
 import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
+import com.digit.user.vo.UserPageVO;
 import com.digit.user.vo.UserRegisterVO;
 
 /**
@@ -329,4 +331,123 @@ public interface UserService {
      * @apiNote 该方法性能优异，适合高频调用场景，建议结合缓存使用
      */
     UserInfoVO getUserInfo(Long userId);
+    
+    /**
+     * 分页查询用户列表服务方法
+     * 
+     * <p>提供管理员使用的用户列表分页查询功能，支持多条件筛选、排序和分页。
+     * 该方法需要管理员或超级管理员权限，会通过OpenFeign调用权限服务验证用户角色。</p>
+     * 
+     * <p><strong>业务流程详述：</strong></p>
+     * <ol>
+     *   <li><strong>权限验证：</strong>
+     *       <ul>
+     *         <li>通过JWT获取当前操作者用户ID</li>
+     *         <li>调用permission-service验证用户角色</li>
+     *         <li>确保用户具有admin或super_admin权限</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>参数处理：</strong>
+     *       <ul>
+     *         <li>验证分页参数的合法性</li>
+     *         <li>解析排序字段和方向</li>
+     *         <li>处理筛选条件</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>数据查询：</strong>
+     *       <ul>
+     *         <li>构建动态查询条件</li>
+     *         <li>执行跨分片的分页查询</li>
+     *         <li>ShardingSphere处理复杂的分页和排序</li>
+     *       </ul>
+     *   </li>
+     *   <li><strong>结果处理：</strong>
+     *       <ul>
+     *         <li>转换User实体为UserInfoVO</li>
+     *         <li>构建分页信息</li>
+     *         <li>返回完整的分页响应</li>
+     *       </ul>
+     *   </li>
+     * </ol>
+     * 
+     * <p><strong>性能特性：</strong></p>
+     * <ul>
+     *   <li>分片查询：ShardingSphere自动处理跨库跨表查询</li>
+     *   <li>智能分页：支持复杂的分页和排序合并</li>
+     *   <li>条件优化：根据筛选条件减少查询范围</li>
+     *   <li>结果缓存：可配合Redis缓存提升性能</li>
+     * </ul>
+     * 
+     * <p><strong>安全特性：</strong></p>
+     * <ul>
+     *   <li>权限控制：严格的角色权限验证</li>
+     *   <li>数据过滤：自动过滤敏感信息</li>
+     *   <li>参数校验：防止SQL注入和参数攻击</li>
+     *   <li>审计日志：记录管理员操作日志</li>
+     * </ul>
+     * 
+     * <p><strong>支持的筛选条件：</strong></p>
+     * <ul>
+     *   <li>用户名模糊匹配</li>
+     *   <li>邮箱模糊匹配</li>
+     *   <li>手机号模糊匹配</li>
+     *   <li>创建时间范围查询</li>
+     * </ul>
+     * 
+     * <p><strong>支持的排序字段：</strong></p>
+     * <ul>
+     *   <li>userId - 用户ID</li>
+     *   <li>username - 用户名</li>
+     *   <li>email - 邮箱</li>
+     *   <li>gmtCreate - 创建时间</li>
+     *   <li>gmtModified - 修改时间</li>
+     * </ul>
+     * 
+     * @param queryDTO 分页查询参数，包含：
+     *                 <ul>
+     *                   <li>{@code page} - 页码（从1开始）</li>
+     *                   <li>{@code size} - 每页大小（1-100）</li>
+     *                   <li>{@code sort} - 排序字段和方向</li>
+     *                   <li>{@code username} - 用户名筛选</li>
+     *                   <li>{@code email} - 邮箱筛选</li>
+     *                   <li>{@code phone} - 手机号筛选</li>
+     *                   <li>{@code gmtCreateStart} - 创建时间开始</li>
+     *                   <li>{@code gmtCreateEnd} - 创建时间结束</li>
+     *                 </ul>
+     *                 
+     * @return {@link UserPageVO} 分页查询结果，包含：
+     *         <ul>
+     *           <li>{@code users} - 用户信息列表</li>
+     *           <li>{@code currentPage} - 当前页码</li>
+     *           <li>{@code pageSize} - 每页大小</li>
+     *           <li>{@code totalElements} - 总记录数</li>
+     *           <li>{@code totalPages} - 总页数</li>
+     *           <li>{@code isFirst/isLast} - 分页状态</li>
+     *           <li>{@code hasPrevious/hasNext} - 翻页状态</li>
+     *         </ul>
+     *         
+     * @throws IllegalArgumentException 当查询参数无效时
+     * @throws SecurityException 当用户权限不足时
+     * @throws DataAccessException 当数据库查询失败时
+     * @throws ServiceException 当权限服务调用失败时
+     * 
+     * @implNote 实现类需要确保：
+     *           <ul>
+     *             <li>严格的权限验证</li>
+     *             <li>参数的安全校验</li>
+     *             <li>高效的分片查询</li>
+     *             <li>完整的异常处理</li>
+     *             <li>敏感信息的过滤</li>
+     *           </ul>
+     * 
+     * @see UserPageQueryDTO 分页查询请求对象
+     * @see UserPageVO 分页查询响应对象
+     * @see UserInfoVO 用户信息对象
+     * @see com.digit.user.repository.UserRepository 用户数据访问层
+     * @see com.digit.user.rcp.PermissionFeignClient 权限服务客户端
+     * 
+     * @since 1.0.0
+     * @apiNote 该方法涉及跨服务调用和复杂查询，建议合理设置超时时间和缓存策略
+     */
+    UserPageVO getUsers(UserPageQueryDTO queryDTO);
 } 
