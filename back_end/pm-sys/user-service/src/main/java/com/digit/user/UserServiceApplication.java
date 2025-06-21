@@ -28,6 +28,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  *   <li>用户登录 - 基于用户名/邮箱的认证</li>
  *   <li>个人信息管理 - 用户资料的增删改查</li>
  *   <li>密码管理 - 密码修改、重置功能</li>
+ *   <li>超级管理员初始化 - 启动时自动创建系统管理员账户</li>
  * </ul>
  * 
  * <p><strong>API文档访问地址：</strong></p>
@@ -42,6 +43,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  * @see com.digit.user.controller.UserController 用户控制器
  * @see com.digit.user.service.UserService 用户服务接口
  * @see com.digit.user.service.impl.UserServiceImpl 用户服务实现
+ * @see com.digit.user.service.component.SuperAdminInitializer 超级管理员初始化器
  */
 @SpringBootApplication(scanBasePackages = "com.digit.user")
 @EnableDiscoveryClient
@@ -52,7 +54,15 @@ public class UserServiceApplication {
      * 用户服务启动入口方法
      * 
      * <p>启动Spring Boot应用程序，初始化所有必要的组件和配置。
-     * 应用启动后将自动注册到Nacos服务注册中心。</p>
+     * 应用启动后将自动注册到Nacos服务注册中心，并执行超级管理员初始化流程。</p>
+     * 
+     * <p><strong>启动流程：</strong></p>
+     * <ol>
+     *   <li>初始化Spring Boot应用上下文</li>
+     *   <li>启动内嵌Web服务器</li>
+     *   <li>注册到Nacos服务发现中心</li>
+     *   <li>执行超级管理员账户初始化</li>
+     * </ol>
      * 
      * @param args 命令行参数，支持Spring Boot的标准启动参数
      *             <ul>
@@ -63,6 +73,7 @@ public class UserServiceApplication {
      * @throws Exception 如果应用启动过程中发生异常
      * 
      * @see SpringApplication#run(Class, String...) Spring Boot启动方法
+     * @see com.digit.user.service.component.SuperAdminInitializer 超级管理员初始化器
      */
     public static void main(String[] args) {
         // 简单粗暴地忽略 RocketMQ 日志警告

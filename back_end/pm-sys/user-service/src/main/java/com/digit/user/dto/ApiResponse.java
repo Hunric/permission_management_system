@@ -5,10 +5,13 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 /**
- * Standard API Response Format
+ * 统一API响应格式
  * 
- * @author System
+ * <p>用于解析其他服务返回的统一响应格式。</p>
+ * 
+ * @author Hunric
  * @version 1.0.0
+ * @since 2025-06-19
  */
 @Data
 @NoArgsConstructor
@@ -16,23 +19,23 @@ import lombok.AllArgsConstructor;
 public class ApiResponse<T> {
     
     /**
-     * Response status code
+     * 状态码
      */
-    private String code;
+    private int code;
     
     /**
-     * Response message
+     * 响应消息
      */
     private String message;
     
     /**
-     * Response data
+     * 响应数据
      */
     private T data;
     
     // Constructor using HttpStatusCode enum
     public ApiResponse(HttpStatusCode statusCode, String message, T data) {
-        this.code = String.valueOf(statusCode.getCode());
+        this.code = statusCode.getCode();
         this.message = message != null ? message : statusCode.getDescription();
         this.data = data;
     }
@@ -118,18 +121,18 @@ public class ApiResponse<T> {
     }
     
     public static <T> ApiResponse<T> error(String code, String message) {
-        return new ApiResponse<>(code, message, null);
+        return new ApiResponse<>(Integer.parseInt(code), message, null);
     }
     
     public static <T> ApiResponse<T> error(String code, String message, T data) {
-        return new ApiResponse<>(code, message, data);
+        return new ApiResponse<>(Integer.parseInt(code), message, data);
     }
     
     public static <T> ApiResponse<T> error(HttpStatusCode statusCode, String message) {
-        return new ApiResponse<>(statusCode, message, null);
+        return new ApiResponse<>(statusCode.getCode(), message, null);
     }
     
     public static <T> ApiResponse<T> error(HttpStatusCode statusCode, String message, T data) {
-        return new ApiResponse<>(statusCode, message, data);
+        return new ApiResponse<>(statusCode.getCode(), message, data);
     }
 } 

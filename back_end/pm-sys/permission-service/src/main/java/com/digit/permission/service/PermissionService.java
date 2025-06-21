@@ -38,4 +38,34 @@ public interface PermissionService {
      * <p>系统启动时调用，确保基础角色数据存在。</p>
      */
     void initializeRoles();
+    
+    /**
+     * 升级用户角色为管理员
+     * 
+     * @param userId 用户ID
+     * @param operatorId 操作者ID
+     * @throws RuntimeException 当升级失败时抛出异常
+     */
+    void upgradeUserToAdmin(Long userId, Long operatorId);
+    
+    /**
+     * 降级用户角色为普通用户
+     * 
+     * @param userId 用户ID
+     * @param operatorId 操作者ID
+     * @throws RuntimeException 当降级失败时抛出异常
+     */
+    void downgradeUserToUser(Long userId, Long operatorId);
+    
+    /**
+     * 为超级管理员绑定特殊角色
+     * 
+     * <p>专门用于超级管理员账户初始化，直接绑定超级管理员角色。
+     * 该方法会检查用户名是否为'super_admin'，只有超级管理员账户才能使用此方法。</p>
+     * 
+     * @param userId 用户ID
+     * @param username 用户名，必须为'super_admin'
+     * @throws RuntimeException 当绑定失败或用户名不是'super_admin'时抛出异常
+     */
+    void bindSuperAdminRole(Long userId, String username);
 } 

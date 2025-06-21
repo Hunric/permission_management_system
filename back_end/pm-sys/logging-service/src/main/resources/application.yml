@@ -54,6 +54,11 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
     org.apache.rocketmq: INFO
+    # 关闭 RocketMQ 客户端的调试日志
+    RocketmqClient: WARN
+    com.alibaba.rocketmq: WARN
+    org.apache.rocketmq.client: WARN
+    org.apache.rocketmq.remoting: WARN
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
 

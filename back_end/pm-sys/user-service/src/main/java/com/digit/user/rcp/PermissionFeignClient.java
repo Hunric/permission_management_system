@@ -1,11 +1,13 @@
 package com.digit.user.rcp;
 
+import com.digit.user.dto.ApiResponse;
 import com.digit.user.dto.UserRoleResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 
 /**
  * 权限服务Feign客户端
@@ -67,11 +69,12 @@ public interface PermissionFeignClient {
      * </ul>
      * 
      * @param userId 用户ID，必须是有效的用户标识符
+     * @return 操作结果响应
      * @throws feign.FeignException 当权限服务调用失败时抛出
      * @throws java.util.concurrent.TimeoutException 当调用超时时抛出
      */
     @PostMapping("/internal/roles/bind-default")
-    void bindDefaultRole(@RequestParam("userId") Long userId);
+    ApiResponse<Void> bindDefaultRole(@RequestParam("userId") Long userId);
     
     /**
      * 查询用户角色
@@ -90,7 +93,7 @@ public interface PermissionFeignClient {
      * @return 用户角色信息，包含roleCode等字段
      */
     @GetMapping("/internal/user/{userId}/role")
-    UserRoleResponse getUserRole(@PathVariable("userId") Long userId);
+    ApiResponse<UserRoleResponse> getUserRole(@PathVariable("userId") Long userId);
     
     /**
      * 升级用户角色为管理员
@@ -98,9 +101,10 @@ public interface PermissionFeignClient {
      * <p>将普通用户的角色提升为管理员。只有超级管理员才能执行此操作。</p>
      * 
      * @param userId 要升级的用户ID
+     * @return 操作结果响应
      */
-    @PostMapping("/user/{userId}/upgrade-to-admin")
-    void upgradeToAdmin(@PathVariable("userId") Long userId);
+    @PutMapping("/user/{userId}/upgrade-to-admin")
+    ApiResponse<Void> upgradeToAdmin(@PathVariable("userId") Long userId);
     
     /**
      * 降级用户角色为普通用户
@@ -108,9 +112,22 @@ public interface PermissionFeignClient {
      * <p>将管理员的角色降级为普通用户。只有超级管理员才能执行此操作。</p>
      * 
      * @param userId 要降级的用户ID
+     * @return 操作结果响应
      */
-    @PostMapping("/user/{userId}/downgrade-to-user")
-    void downgradeToUser(@PathVariable("userId") Long userId);
+    @PutMapping("/user/{userId}/downgrade-to-user")
+    ApiResponse<Void> downgradeToUser(@PathVariable("userId") Long userId);
+    
+    /**
+     * 为超级管理员绑定特殊角色
+     * 
+     * <p>专门用于超级管理员账户初始化，只能为用户名为'super_admin'的用户绑定超级管理员角色。</p>
+     * 
+     * @param userId 用户ID
+     * @param username 用户名，必须为'super_admin'
+     * @return 操作结果响应
+     */
+    @PostMapping("/internal/roles/bind-super-admin")
+    ApiResponse<Void> bindSuperAdminRole(@RequestParam("userId") Long userId, @RequestParam("username") String username);
 }
 
 /**
@@ -121,26 +138,32 @@ public interface PermissionFeignClient {
 class PermissionFeignClientFallback implements PermissionFeignClient {
     
     @Override
-    public void bindDefaultRole(Long userId) {
+    public ApiResponse<Void> bindDefaultRole(Long userId) {
         throw new RuntimeException("权限服务暂时不可用，无法为用户绑定默认角色");
     }
     
     @Override
-    public UserRoleResponse getUserRole(Long userId) {
+    public ApiResponse<UserRoleResponse> getUserRole(Long userId) {
         // 返回默认的普通用户角色
-        return UserRoleResponse.builder()
+        UserRoleResponse defaultRole = UserRoleResponse.builder()
                 .roleCode("user")
                 .roleName("普通用户")
                 .build();
+        return ApiResponse.success("降级返回默认角色", defaultRole);
     }
     
     @Override
-    public void upgradeToAdmin(Long userId) {
+    public ApiResponse<Void> upgradeToAdmin(Long userId) {
         throw new RuntimeException("权限服务暂时不可用，无法升级用户角色");
     }
     
     @Override
-    public void downgradeToUser(Long userId) {
+    public ApiResponse<Void> downgradeToUser(Long userId) {
         throw new RuntimeException("权限服务暂时不可用，无法降级用户角色");
+    }
+    
+    @Override
+    public ApiResponse<Void> bindSuperAdminRole(Long userId, String username) {
+        throw new RuntimeException("权限服务暂时不可用，无法绑定超级管理员角色");
     }
 } 

@@ -62,6 +62,12 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    # 关闭 RocketMQ 客户端的调试日志
+    org.apache.rocketmq: INFO
+    RocketmqClient: WARN
+    com.alibaba.rocketmq: WARN
+    org.apache.rocketmq.client: WARN
+    org.apache.rocketmq.remoting: WARN
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
 
@@ -74,4 +80,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+# 自定义配置
+app:
+  operation-log:
+    topic: user-operation-log  # 与日志服务监听的Topic保持一致
 

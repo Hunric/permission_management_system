@@ -1,5 +1,6 @@
 package com.digit.user.service.component;
 
+import com.digit.user.dto.ApiResponse;
 import com.digit.user.dto.UserRoleResponse;
 import com.digit.user.rcp.PermissionFeignClient;
 import com.digit.user.util.SecurityUtil;
@@ -54,12 +55,14 @@ public class UserPermissionComponent {
         
         try {
             // 调用权限服务查询用户角色
-            UserRoleResponse userRole = permissionFeignClient.getUserRole(currentUserId);
+            ApiResponse<UserRoleResponse> response = permissionFeignClient.getUserRole(currentUserId);
             
-            if (userRole == null) {
+            if (response == null || response.getData() == null) {
                 log.warn("权限验证失败：用户未分配角色，用户ID: {}", currentUserId);
                 throw new SecurityException("用户未分配角色");
             }
+            
+            UserRoleResponse userRole = response.getData();
             
             // 检查是否为管理员角色
             if (!ADMIN_ROLES.contains(userRole.getRoleCode())) {
@@ -88,13 +91,14 @@ public class UserPermissionComponent {
         log.debug("查询用户角色，用户ID: {}", userId);
         
         try {
-            UserRoleResponse userRole = permissionFeignClient.getUserRole(userId);
+            ApiResponse<UserRoleResponse> response = permissionFeignClient.getUserRole(userId);
             
-            if (userRole == null) {
+            if (response == null || response.getData() == null) {
                 log.warn("用户未分配角色，用户ID: {}", userId);
                 return null;
             }
             
+            UserRoleResponse userRole = response.getData();
             log.debug("查询到用户角色，用户ID: {}, 角色: {}", userId, userRole.getRoleCode());
             return userRole;
             

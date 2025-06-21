@@ -1,5 +1,6 @@
 package com.digit.permission.controller;
 
+import com.digit.permission.dto.ApiResponse;
 import com.digit.permission.dto.UserRoleResponse;
 import com.digit.permission.service.PermissionService;
 
@@ -36,17 +37,17 @@ public class InternalPermissionController {
      * @return 操作结果
      */
     @PostMapping("/roles/bind-default")
-    public ResponseEntity<String> bindDefaultRole(@RequestParam("userId") Long userId) {
+    public ResponseEntity<ApiResponse<Void>> bindDefaultRole(@RequestParam("userId") Long userId) {
         log.info("收到绑定默认角色请求，用户ID: {}", userId);
         
         try {
             permissionService.bindDefaultRole(userId);
-            return ResponseEntity.ok("默认角色绑定成功");
+            return ResponseEntity.ok(ApiResponse.success("默认角色绑定成功"));
             
         } catch (Exception e) {
             log.error("绑定默认角色失败，用户ID: {}, 错误: {}", userId, e.getMessage());
-            return ResponseEntity.internalServerError()
-                    .body("绑定默认角色失败: " + e.getMessage());
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error(500, "绑定默认角色失败: " + e.getMessage()));
         }
     }
     
@@ -59,7 +60,7 @@ public class InternalPermissionController {
      * @return 用户角色信息
      */
     @GetMapping("/user/{userId}/role")
-    public ResponseEntity<UserRoleResponse> getUserRole(@PathVariable("userId") Long userId) {
+    public ResponseEntity<ApiResponse<UserRoleResponse>> getUserRole(@PathVariable("userId") Long userId) {
         log.debug("收到查询用户角色请求，用户ID: {}", userId);
         
         try {
@@ -67,14 +68,43 @@ public class InternalPermissionController {
             
             if (userRole == null) {
                 log.warn("用户未分配角色，用户ID: {}", userId);
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(404)
+                        .body(ApiResponse.error(404, "用户未分配角色"));
             }
             
-            return ResponseEntity.ok(userRole);
+            return ResponseEntity.ok(ApiResponse.success("查询成功", userRole));
             
         } catch (Exception e) {
             log.error("查询用户角色失败，用户ID: {}, 错误: {}", userId, e.getMessage());
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error(500, "查询用户角色失败"));
+        }
+    }
+    
+    /**
+     * 为超级管理员绑定特殊角色
+     * 
+     * <p>该接口专门用于超级管理员账户初始化，只能为用户名为'super_admin'的用户绑定超级管理员角色。
+     * 该接口由user-service在系统启动时调用。</p>
+     * 
+     * @param userId 用户ID
+     * @param username 用户名，必须为'super_admin'
+     * @return 操作结果
+     */
+    @PostMapping("/roles/bind-super-admin")
+    public ResponseEntity<ApiResponse<Void>> bindSuperAdminRole(
+            @RequestParam("userId") Long userId, 
+            @RequestParam("username") String username) {
+        log.info("收到绑定超级管理员角色请求，用户ID: {}, 用户名: {}", userId, username);
+        
+        try {
+            permissionService.bindSuperAdminRole(userId, username);
+            return ResponseEntity.ok(ApiResponse.success("超级管理员角色绑定成功"));
+            
+        } catch (Exception e) {
+            log.error("绑定超级管理员角色失败，用户ID: {}, 用户名: {}, 错误: {}", userId, username, e.getMessage());
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error(500, "绑定超级管理员角色失败: " + e.getMessage()));
         }
     }
 } 
