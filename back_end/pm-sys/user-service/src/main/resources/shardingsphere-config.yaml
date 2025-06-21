@@ -1,0 +1,76 @@
+# ShardingSphere 配置文件
+# 适配5.1.2版本的配置语法
+
+# 模式配置
+mode:
+  type: Standalone
+  repository:
+    type: File
+
+# 数据源配置
+dataSources:
+  db0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://localhost:33060/user_db_0?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    maximumPoolSize: 10
+    minimumIdle: 5
+    connectionTimeout: 20000
+    idleTimeout: 300000
+    maxLifetime: 1200000
+  db1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://localhost:33060/user_db_1?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    maximumPoolSize: 10
+    minimumIdle: 5
+    connectionTimeout: 20000
+    idleTimeout: 300000
+    maxLifetime: 1200000
+
+# 分片规则配置
+rules:
+  - !SHARDING
+    tables:
+      users:
+        actualDataNodes: db${0..1}.users_${0..1}
+        tableStrategy:
+          standard:
+            shardingColumn: user_id
+            shardingAlgorithmName: users_table_alg
+        databaseStrategy:
+          standard:
+            shardingColumn: user_id
+            shardingAlgorithmName: users_db_alg
+        keyGenerateStrategy:
+          column: user_id
+          keyGeneratorName: snowflake_key_generator
+    
+    shardingAlgorithms:
+      users_db_alg:
+        type: INLINE
+        props:
+          algorithm-expression: db${user_id % 2}
+      users_table_alg:
+        type: INLINE
+        props:
+          algorithm-expression: users_${user_id % 2}
+    
+    keyGenerators:
+      snowflake_key_generator:
+        type: SNOWFLAKE
+        props:
+          worker-id: 1
+
+# 属性配置
+props:
+  sql-show: true
+  sql-simple: true
+  # 解决 Seata 表元数据获取问题
+  check-table-metadata-enabled: false
+  # 禁用 ShardingSphere 内置事务管理器，使用 Seata
+  # xa-transaction-manager-type: Atomikos 

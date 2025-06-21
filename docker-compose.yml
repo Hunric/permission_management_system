@@ -1,29 +1,23 @@
-version: '3.8'
 services:
-  # 1. MySQL 数据库
+  # 1. MySQL 数据库 - 使用8.0版本以保证稳定性
   mysql:
     image: mysql:8.0
     container_name: mysql
     ports:
-      - "3306:3306"
+      - "33060:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=root
     volumes:
       - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    restart: unless-stopped
 
-  # 2. 用于服务发现和配置的 Nacos
+  # 2. 用于服务发现和配置的 Nacos - 降级到2.0.4版本
   nacos:
-    image: nacos/nacos-server:v2.4.3
+    image: nacos/nacos-server:v2.0.4
     container_name: nacos
     ports:
-      - "8848:8848" # Server
-      - "9848:9848" # gRPC for clients
-      - "9849:9849" # gRPC for client TLS (optional)
+      - "18848:8848" # Server
+      - "19848:9848" # gRPC for clients
     environment:
       - PREFER_HOST_MODE=hostname
       - MODE=standalone # 为简单起见，使用单机模式
@@ -34,66 +28,46 @@ services:
       timeout: 5s
       retries: 5
     depends_on:
-      mysql:
-        condition: service_healthy # 确保 MySQL 启动后再启动 Nacos (如果 Nacos 使用外部MySQL)
+      - mysql # 确保 MySQL 启动后再启动 Nacos
 
-  # 3. 用于消息传递的 RocketMQ NameServer
-  rocketmq-namesrv:
-    image: apache/rocketmq:5.1.0
-    container_name: rocketmq-namesrv
+  # 3. RocketMQ 消息队列 - 降级到4.9.4版本以兼容旧版本Spring Boot
+  # NameServer（名称服务器）
+  namesrv:
+    image: apache/rocketmq:4.9.4
+    container_name: rmqnamesrv
     ports:
-      - "9876:9876" # NameServer port
+      - 19876:9876 # NameServer 默认端口
     command: sh mqnamesrv # 启动 NameServer
-    healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost 9876"] # 简单的端口检查
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # 4. 用于消息传递的 RocketMQ Broker
-  rocketmq-broker:
-    image: apache/rocketmq:5.1.0
-    container_name: rocketmq-broker
+  # 4. RocketMQ Broker（消息代理服务器）
+  broker:
+    image: apache/rocketmq:4.9.4
+    container_name: rmqbroker
     ports:
-      - "10911:10911" # Broker port
-      - "10909:10909" # Slave/Master sync port (important for master/slave or HA)
+      - 10909:10909 # Broker 对外服务端口（用于客户端连接）
+      - 10911:10911 # Broker 主从同步端口
     environment:
-      - NAMESRV_ADDR=rocketmq-namesrv:9876 # 指向 NameServer 服务名和端口
-      - BROKER_IP_CONTAINER=rocketmq-broker # 容器内部Broker IP
-      - BROKER_IP_FROM_SERVER=true # 让RocketMQ自动检测外部IP，或者手动设置BROKER_IP
-      - BROKER_NAME=broker-a # 可以自定义 Broker 名称
-    command: sh mqbroker -c /opt/rocketmq/conf/broker.conf
+      - JAVA_OPT_EXT=-server -Xms1g -Xmx1g
     volumes:
-      # 可以选择挂载自定义 broker.conf，如果不需要特殊配置可以省略
-      # - ./rocketmq-broker-conf:/opt/rocketmq/conf
-      - rocketmq-broker-logs:/home/rocketmq/logs
-      - rocketmq-broker-store:/home/rocketmq/store
+      - ./rocketmq-broker.conf:/opt/rocketmq-4.9.4/conf/broker.conf:ro
     depends_on:
-      rocketmq-namesrv:
-        condition: service_healthy # 确保 NameServer 启动后再启动 Broker
-    healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost 10911"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - namesrv # 依赖 NameServer 先启动
+    command: sh mqbroker -n rmqnamesrv:9876 -c /opt/rocketmq-4.9.4/conf/broker.conf
 
-  # 5. 用于分布式事务的 Seata
+  # 5. 分布式事务协调器 - Seata Server 降级到1.5.2版本
   seata-server:
-    image: seataio/seata-server:1.7.0
+    image: seataio/seata-server:1.5.2
     container_name: seata-server
     ports:
-      - "8091:8091" # Transaction Coordinator (TC) port
+      - "18091:8091" # Transaction Coordinator (TC) 端口，用于事务协调
     environment:
-      - SEATA_STORE_MODE=file # 为简单起见，使用文件存储。生产环境通常是db
-      # - SEATA_PORT=8091 # 端口
-      # - SEATA_IP=0.0.0.0 # 监听所有IP
+      - SEATA_STORE_MODE=file # 事务日志存储模式：file（文件）或 db（数据库）
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8091"] # 简单的端口检查，Seata没有健康检查接口
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:8091/health"] # 健康检查
+      interval: 10s # 每10秒检查一次
+      timeout: 5s # 检查超时时间5秒
+      retries: 5 # 失败重试5次
 
+# 数据卷配置 - 用于数据持久化存储
 volumes:
-  mysql-data:
-  rocketmq-broker-logs:
-  rocketmq-broker-store:
+  mysql-data: # MySQL 数据存储卷

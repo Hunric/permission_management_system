@@ -1,0 +1,76 @@
+server:
+  port: 8082 # 日志服务的端口
+
+spring:
+  application:
+    name: logging-service # 用于 Nacos 服务发现的服务名
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:18848
+        namespace: public
+        group: DEFAULT_GROUP
+
+  datasource:
+    url: jdbc:mysql://localhost:33060/logging_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    # 禁用 open-in-view 以避免警告和潜在的性能问题
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect  # MySQL8方言
+        format_sql: true
+
+# RocketMQ 配置
+rocketmq:
+  name-server: localhost:19876
+  consumer:
+    group: logging-service-consumer-group
+    consume-timeout: 15000 # 消费超时时间（毫秒）
+    max-reconsume-times: 3  # 最大重试次数
+    consume-thread-min: 5
+    consume-thread-max: 20
+    pull-threshold-for-queue: 1000
+
+# 日志配置
+logging:
+  level:
+    com.digit.logging: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.apache.rocketmq: INFO
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
+
+# 管理端点配置 - Spring Boot 2兼容版本
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# 自定义配置
+app:
+  operation-log:
+    topic: user-operation-log  # 与消费者监听的Topic保持一致
+    tag: "*"  # 消息标签
+
+ 

@@ -5,73 +5,131 @@ spring:
   application:
     name: user-service
 
+  # 解决 SpringFox 3.0.0 与 Spring Boot 2.6+ 路径匹配策略冲突
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+  # Jackson 配置
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    modules:
+      - com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+
+  # JPA 配置
+  jpa:
+    # 禁用 open-in-view 以避免警告和潜在的性能问题
+    open-in-view: false
+    hibernate:
+      # 禁用 DDL 自动生成，我们使用手动创建的表
+      ddl-auto: none
+    properties:
+      hibernate:
+        # 使用 MySQL8 方言
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        # 禁用 ID 生成器，让 ShardingSphere 处理
+        id:
+          new_generator_mappings: false
+
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
-    # Seata 配置
-    alibaba:
-      seata:
-        tx-service-group: "user_tx_group" # 必须与 Seata 服务器配置匹配
-        # 在 Seata 1.5+ 上，可能需要一个 file.conf 文件，但这个 starter 简化了它。
+        server-addr: localhost:18848
+        namespace: public
+        group: DEFAULT_GROUP
 
-# ShardingSphere JDBC 配置
-spring.shardingsphere:
-  mode:
-    type: Cluster # 生产环境使用 Cluster 模式，开发环境使用 Standalone
-    repository:
-      type: Nacos
-      props:
-        server-lists: localhost:8848
-        namespace: #  Nacos 命名空间（如果有）
-  # 定义数据源
-  datasource:
-    names: db0, db1
-    db0:
-      type: com.zaxxer.hikari.HikariDataSource
-      driver-class-name: com.mysql.cj.jdbc.Driver
-      jdbc-url: jdbc:mysql://localhost:3306/user_db_0
-      username: root
-      password: root
-    db1:
-      type: com.zaxxer.hikari.HikariDataSource
-      driver-class-name: com.mysql.cj.jdbc.Driver
-      jdbc-url: jdbc:mysql://localhost:3306/user_db_1
-      username: root
-      password: root
+# Seata 详细配置 - Spring Boot 2兼容版本
+seata:
+  # 启用 Seata
+  enabled: true
+  # 应用ID配置
+  application-id: user-service
+  # 事务组配置
+  tx-service-group: user_tx_group
+  # 事务组映射
+  service:
+    vgroup-mapping:
+      user_tx_group: default
+    grouplist:
+      default: localhost:18091
+  # 注册中心配置
+  registry:
+    type: file
+  # 配置中心
+  config:
+    type: file
+  # 数据源代理模式 - 使用 AT 模式
+  data-source-proxy-mode: AT
+  # 事务管理器配置
+  tm:
+    commit-retry-count: 5
+    rollback-retry-count: 5
+  # 资源管理器配置
+  rm:
+    async-commit-buffer-limit: 10000
+    report-retry-count: 5
+    table-meta-check-enable: false
+    report-success-enable: false
+    saga-branch-register-enable: false
+    saga-json-parser: fastjson
+    saga-retry-persist-mode-update: false
+    saga-compensate-persist-mode-update: false
+    # 禁用表元数据缓存以避免分片环境下的问题
+    table-meta-cache-enable: false
+    lock:
+      retry-interval: 10
+      retry-times: 30
+      retry-policy-branch-rollback-on-conflict: true
 
-  # 定义分片规则
-  rules:
-    sharding:
-      tables:
-        users: # 逻辑表名
-          actual-data-nodes: db${0..1}.users_${0..1} # 映射到 db0.users_0, db0.users_1, db1.users_0, db1.users_1
-          table-strategy:
-            standard:
-              sharding-column: user_id
-              sharding-algorithm-name: users_table_alg
-          database-strategy:
-            standard:
-              sharding-column: user_id
-              sharding-algorithm-name: users_db_alg
-          key-generate-strategy:
-            column: user_id
-            key-generator-name: snowflake # 使用 Snowflake 获取分布式 ID
+# RocketMQ 配置
+rocketmq:
+  name-server: localhost:19876
+  producer:
+    group: user-service-producer-group
+    send-message-timeout: 3000
+    compress-message-body-threshold: 4096
+    max-message-size: 4194304
+    retry-times-when-send-failed: 2
+    retry-times-when-send-async-failed: 2
 
-      # 定义分片算法
-      sharding-algorithms:
-        users_db_alg:
-          type: INLINE
-          props:
-            algorithm-expression: db${user_id % 2}
-        users_table_alg:
-          type: INLINE
-          props:
-            algorithm-expression: users_${user_id % 2}
-        snowflake:
-          type: SNOWFLAKE
-
-# 为清晰起见，默认禁用 Feign 的 Hystrix
+# OpenFeign 配置 - Spring Boot 2兼容版本
 feign:
-  hystrix:
-    enabled: false
+  client:
+    config:
+      default:
+        connect-timeout: 5000
+        read-timeout: 10000
+        logger-level: basic
+  compression:
+    request:
+      enabled: true
+    response:
+      enabled: true
+
+# JWT 配置
+jwt:
+  secret: mySecretKey123456789012345678901234567890
+  expiration: 7200
+
+# 日志配置
+logging:
+  level:
+    com.digit.user: DEBUG
+    org.springframework.web: INFO
+    org.apache.shardingsphere: INFO
+    org.springframework.cloud.openfeign: DEBUG
+    io.seata: INFO
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
+
+# 管理端点配置 - Spring Boot 2兼容版本
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+

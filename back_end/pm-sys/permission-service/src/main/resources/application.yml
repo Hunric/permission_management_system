@@ -5,18 +5,73 @@ spring:
   application:
     name: permission-service # 用于 Nacos 服务发现的服务名
 
+  # 解决 SpringFox 3.0.0 与 Spring Boot 2.6+ 路径匹配策略冲突
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848 # Nacos 服务器地址
+        server-addr: localhost:18848
+        namespace: public
+        group: DEFAULT_GROUP
 
   datasource:
-    url: jdbc:mysql://localhost:3306/permission_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC
+    url: jdbc:mysql://localhost:33060/permission_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
 
   jpa:
     hibernate:
       ddl-auto: none # 我们已经创建了表
     show-sql: true
+    # 禁用 open-in-view 以避免警告和潜在的性能问题
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect  # MySQL8方言
+        format_sql: true
+
+# RocketMQ 配置
+rocketmq:
+  name-server: localhost:19876
+  producer:
+    group: permission-service-producer-group
+    send-message-timeout: 3000
+    compress-message-body-threshold: 4096
+    max-message-size: 4194304
+    retry-times-when-send-failed: 2
+    retry-times-when-send-async-failed: 2
+
+# JWT 配置（用于验证来自其他服务的请求）
+jwt:
+  secret: mySecretKey123456789012345678901234567890  # 必须与user-service保持一致
+
+# 日志配置
+logging:
+  level:
+    com.digit.permission: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
+
+# 管理端点配置 - Spring Boot 2兼容版本
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
