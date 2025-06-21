@@ -55,10 +55,10 @@ public class User {
      * 该ID作为分片键，用于确定数据存储的物理位置。
      * ID生成策略在shardingsphere-config.yaml中配置。</p>
      * 
-     * <p><strong>注意：</strong>使用ShardingSphere时，不使用JPA的@GeneratedValue注解，
-     * ID生成完全由ShardingSphere的keyGenerateStrategy处理。</p>
+     * <p><strong>注意：</strong>使用 IDENTITY 策略让 ShardingSphere 接管 ID 生成</p>
      */
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id", nullable = false, columnDefinition = "BIGINT COMMENT '用户唯一标识符，雪花算法生成'")
     private Long userId;
     

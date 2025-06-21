@@ -8,6 +8,7 @@ import com.digit.user.rcp.PermissionFeignClient;
 import com.digit.user.service.UserService;
 import com.digit.user.vo.UserRegisterVO;
 import com.digit.user.util.IpAddressUtil;
+// import com.digit.user.util.ShardingSphereIdGenerator;
 
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class UserServiceImpl implements UserService {
     private final PermissionFeignClient permissionFeignClient;
     private final RocketMQTemplate rocketMQTemplate;
     private final BCryptPasswordEncoder passwordEncoder;// 需要创建安全配置类
+    // private final ShardingSphereIdGenerator idGenerator;
     
     /**
      * 用户注册实现
@@ -45,9 +47,7 @@ public class UserServiceImpl implements UserService {
      * 7. 将结果转换为VO并返回
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    // 临时注释掉 Seata 全局事务，先解决基础的分片问题
-    // @GlobalTransactional(name = "user-register-tx", rollbackFor = Exception.class)
+    @GlobalTransactional(name = "user-register-tx", rollbackFor = Exception.class)
     public UserRegisterVO register(UserRegisterDTO userRegisterDTO) {
         log.info("开始注册用户: {}", userRegisterDTO.getUsername());
         
@@ -69,19 +69,10 @@ public class UserServiceImpl implements UserService {
             User user = convertDtoToEntity(userRegisterDTO, encodedPassword);
             log.debug("实体转换完成，用户名: {}", user.getUsername());
             
-            // 步骤 4: 持久化用户实体 (ShardingSphere 在此介入)
-            log.debug("步骤 4: 持久化用户实体到分片数据库");
+            // 步骤 4: 持久化用户实体 (ShardingSphere 自动生成雪花算法ID)
+            log.debug("步骤 4: 持久化用户实体到分片数据库，ShardingSphere将自动生成雪花算法ID");
             
-            // 临时解决方案：使用时间戳 + 随机数生成唯一ID
-            // 注意：这是一个临时方案，理想情况下应该让ShardingSphere自动生成
-            if (user.getUserId() == null) {
-                long timestamp = System.currentTimeMillis();
-                int random = (int) (Math.random() * 1000);
-                user.setUserId(timestamp * 1000 + random);
-                log.debug("手动设置用户ID: {}", user.getUserId());
-            }
-            
-            log.debug("准备保存用户实体，当前ID: {}, 用户名: {}", user.getUserId(), user.getUsername());
+            log.debug("准备保存用户实体，用户名: {}, ID将由ShardingSphere自动生成", user.getUsername());
             
             // 使用 save 而不是 saveAndFlush，让 Seata 管理事务
             User savedUser = userRepository.save(user);

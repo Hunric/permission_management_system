@@ -28,9 +28,87 @@ spring:
       hibernate:
         # 使用 MySQL8 方言
         dialect: org.hibernate.dialect.MySQL8Dialect
-        # 禁用 ID 生成器，让 ShardingSphere 处理
+        # 配置 Hibernate 与 ShardingSphere 协作
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        # 禁用 Hibernate 的自动 ID 生成，让 ShardingSphere 处理
         id:
           new_generator_mappings: false
+
+  # ShardingSphere 配置 - 直接在 application.yml 中配置
+  shardingsphere:
+    # 启用 ShardingSphere
+    enabled: true
+    # 模式配置
+    mode:
+      type: Standalone
+      repository:
+        type: File
+    # 数据源配置
+    datasource:
+      names: db0,db1
+      db0:
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        jdbc-url: jdbc:mysql://localhost:33060/user_db_0?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+        username: root
+        password: root
+        hikari:
+          maximum-pool-size: 10
+          minimum-idle: 5
+          connection-timeout: 20000
+          idle-timeout: 300000
+          max-lifetime: 1200000
+      db1:
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        jdbc-url: jdbc:mysql://localhost:33060/user_db_1?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+        username: root
+        password: root
+        hikari:
+          maximum-pool-size: 10
+          minimum-idle: 5
+          connection-timeout: 20000
+          idle-timeout: 300000
+          max-lifetime: 1200000
+    # 分片规则配置
+    rules:
+      sharding:
+        tables:
+          users:
+            actual-data-nodes: db$->{0..1}.users_$->{0..1}
+            table-strategy:
+              standard:
+                sharding-column: user_id
+                sharding-algorithm-name: users_table_alg
+            database-strategy:
+              standard:
+                sharding-column: user_id
+                sharding-algorithm-name: users_db_alg
+            key-generate-strategy:
+              column: user_id
+              key-generator-name: snowflake_key_generator
+        sharding-algorithms:
+          users_db_alg:
+            type: INLINE
+            props:
+              algorithm-expression: db$->{user_id % 2}
+          users_table_alg:
+            type: INLINE
+            props:
+              algorithm-expression: users_$->{user_id % 2}
+        key-generators:
+          snowflake_key_generator:
+            type: SNOWFLAKE
+            props:
+              worker-id: 1
+    # 属性配置
+    props:
+      sql-show: true
+      sql-simple: true
+      check-table-metadata-enabled: false
 
   cloud:
     nacos:
@@ -59,8 +137,10 @@ seata:
   # 配置中心
   config:
     type: file
-  # 数据源代理模式 - 使用 AT 模式
+  # 数据源代理模式 - 在 ShardingSphere 环境下禁用自动代理
   data-source-proxy-mode: AT
+  # 禁用自动数据源代理，避免与 ShardingSphere 冲突
+  enable-auto-data-source-proxy: false
   # 事务管理器配置
   tm:
     commit-retry-count: 5
@@ -77,6 +157,8 @@ seata:
     saga-compensate-persist-mode-update: false
     # 禁用表元数据缓存以避免分片环境下的问题
     table-meta-cache-enable: false
+    # 支持分片环境的配置
+    table-meta-checker-enable: false
     lock:
       retry-interval: 10
       retry-times: 30

@@ -18,7 +18,7 @@ import javax.sql.DataSource;
  * @since 1.0
  */
 @Configuration
-@EnableAutoDataSourceProxy
+// @EnableAutoDataSourceProxy  // 禁用自动数据源代理，避免与 ShardingSphere 冲突
 public class SeataConfig {
 
     /**
