@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 权限服务Feign客户端
  * 
@@ -128,6 +131,18 @@ public interface PermissionFeignClient {
      */
     @PostMapping("/internal/roles/bind-super-admin")
     ApiResponse<Void> bindSuperAdminRole(@RequestParam("userId") Long userId, @RequestParam("username") String username);
+    
+    /**
+     * 根据角色代码查询用户ID列表
+     * 
+     * <p>用于权限过滤，查询具有指定角色的所有用户ID。
+     * 主要用于分页查询时过滤掉不应该显示的用户。</p>
+     * 
+     * @param roleCodes 角色代码列表，逗号分隔
+     * @return 用户ID列表
+     */
+    @GetMapping("/internal/users/by-roles")
+    ApiResponse<List<Long>> getUserIdsByRoleCodes(@RequestParam("roleCodes") String roleCodes);
 }
 
 /**
@@ -165,5 +180,11 @@ class PermissionFeignClientFallback implements PermissionFeignClient {
     @Override
     public ApiResponse<Void> bindSuperAdminRole(Long userId, String username) {
         throw new RuntimeException("权限服务暂时不可用，无法绑定超级管理员角色");
+    }
+    
+    @Override
+    public ApiResponse<List<Long>> getUserIdsByRoleCodes(String roleCodes) {
+        // 降级时返回空列表，不过滤任何用户
+        return ApiResponse.success("降级返回空列表", new ArrayList<>());
     }
 } 

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -57,5 +58,12 @@ public interface UserRoleRepository extends JpaRepository<UserRole, Long> {
     @Transactional
     int deleteByUserId(Long userId);
     
-
+    /**
+     * 根据角色代码查询用户ID列表
+     * 
+     * @param roleCodes 角色代码列表
+     * @return 用户ID列表
+     */
+    @Query("SELECT ur.userId FROM UserRole ur JOIN Role r ON ur.roleId = r.roleId WHERE r.roleCode IN :roleCodes")
+    List<Long> findUserIdsByRoleCodes(@Param("roleCodes") List<String> roleCodes);
 } 

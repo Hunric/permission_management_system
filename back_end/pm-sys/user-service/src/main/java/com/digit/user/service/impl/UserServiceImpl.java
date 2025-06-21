@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 /**
  * 用户服务实现类
  * 
@@ -177,10 +179,10 @@ public class UserServiceImpl implements UserService {
      * 
      * <p>按照以下步骤执行：</p>
      * <ol>
-     *   <li>验证管理员权限</li>
+     *   <li>验证管理员权限并获取排除用户列表</li>
      *   <li>验证查询参数</li>
      *   <li>构建分页对象</li>
-     *   <li>执行分页查询</li>
+     *   <li>执行分页查询（带角色过滤）</li>
      *   <li>转换并返回结果</li>
      * </ol>
      */
@@ -190,9 +192,9 @@ public class UserServiceImpl implements UserService {
         log.info("分页查询用户列表请求，页码: {}, 每页大小: {}", queryDTO.getPage(), queryDTO.getSize());
         
         try {
-            // 步骤 1: 验证管理员权限
-            log.debug("步骤 1: 验证管理员权限");
-            userPermissionComponent.validateAdminPermission();
+            // 步骤 1: 验证管理员权限并获取排除用户列表
+            log.debug("步骤 1: 验证管理员权限并获取排除用户列表");
+            List<Long> excludeUserIds = userPermissionComponent.getExcludedUserIds();
             
             // 步骤 2: 验证查询参数
             log.debug("步骤 2: 验证查询参数");
@@ -202,15 +204,16 @@ public class UserServiceImpl implements UserService {
             log.debug("步骤 3: 构建分页对象");
             Pageable pageable = userQueryComponent.buildPageable(queryDTO);
             
-            // 步骤 4: 执行分页查询
-            log.debug("步骤 4: 执行分页查询");
-            Page<User> userPage = userQueryComponent.executePageQuery(queryDTO, pageable);
+            // 步骤 4: 执行分页查询（带角色过滤）
+            log.debug("步骤 4: 执行分页查询（带角色过滤），排除用户数: {}", excludeUserIds.size());
+            Page<User> userPage = userQueryComponent.executePageQueryWithRoleFilter(queryDTO, pageable, excludeUserIds);
             
             // 步骤 5: 转换并返回结果
             log.debug("步骤 5: 转换查询结果为VO");
             UserPageVO result = userQueryComponent.convertToPageVO(userPage);
             
-            log.info("分页查询用户列表成功，总记录数: {}, 当前页: {}", result.getTotalElements(), result.getCurrentPage());
+            log.info("分页查询用户列表成功，总记录数: {}, 当前页: {}, 排除用户数: {}", 
+                    result.getTotalElements(), result.getCurrentPage(), excludeUserIds.size());
             return result;
             
         } catch (SecurityException e) {

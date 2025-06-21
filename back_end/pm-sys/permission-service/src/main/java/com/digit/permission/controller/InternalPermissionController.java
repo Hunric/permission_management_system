@@ -9,6 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * 内部权限控制器
  * 
@@ -105,6 +108,32 @@ public class InternalPermissionController {
             log.error("绑定超级管理员角色失败，用户ID: {}, 用户名: {}, 错误: {}", userId, username, e.getMessage());
             return ResponseEntity.status(500)
                     .body(ApiResponse.error(500, "绑定超级管理员角色失败: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * 根据角色代码查询用户ID列表
+     * 
+     * <p>该接口用于权限过滤，查询具有指定角色的所有用户ID。
+     * 主要用于分页查询时过滤掉不应该显示的用户。</p>
+     * 
+     * @param roleCodes 角色代码列表，逗号分隔
+     * @return 用户ID列表
+     */
+    @GetMapping("/users/by-roles")
+    public ResponseEntity<ApiResponse<List<Long>>> getUserIdsByRoleCodes(@RequestParam("roleCodes") String roleCodes) {
+        log.debug("收到根据角色代码查询用户ID列表请求，角色代码: {}", roleCodes);
+        
+        try {
+            List<String> roleCodeList = Arrays.asList(roleCodes.split(","));
+            List<Long> userIds = permissionService.getUserIdsByRoleCodes(roleCodeList);
+            
+            return ResponseEntity.ok(ApiResponse.success("查询成功", userIds));
+            
+        } catch (Exception e) {
+            log.error("根据角色代码查询用户ID列表失败，角色代码: {}, 错误: {}", roleCodes, e.getMessage());
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error(500, "查询用户ID列表失败"));
         }
     }
 } 

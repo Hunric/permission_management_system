@@ -1,6 +1,7 @@
 package com.digit.permission.service;
 
 import com.digit.permission.dto.UserRoleResponse;
+import java.util.List;
 
 /**
  * 权限服务接口
@@ -68,4 +69,15 @@ public interface PermissionService {
      * @throws RuntimeException 当绑定失败或用户名不是'super_admin'时抛出异常
      */
     void bindSuperAdminRole(Long userId, String username);
+    
+    /**
+     * 根据角色代码查询用户ID列表
+     * 
+     * <p>用于权限过滤，查询具有指定角色的所有用户ID。
+     * 主要用于分页查询时过滤掉不应该显示的用户。</p>
+     * 
+     * @param roleCodes 角色代码列表
+     * @return 具有指定角色的用户ID列表
+     */
+    List<Long> getUserIdsByRoleCodes(List<String> roleCodes);
 } 

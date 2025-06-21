@@ -126,6 +126,54 @@ public class UserQueryComponent {
     }
     
     /**
+     * 执行分页查询（带角色过滤）
+     * 
+     * @param queryDTO 查询参数DTO
+     * @param pageable 分页对象
+     * @param excludeUserIds 需要排除的用户ID列表
+     * @return 分页查询结果
+     */
+    public Page<User> executePageQueryWithRoleFilter(UserPageQueryDTO queryDTO, Pageable pageable, List<Long> excludeUserIds) {
+        log.debug("执行分页查询（带角色过滤），排除用户数: {}", excludeUserIds != null ? excludeUserIds.size() : 0);
+        
+        Timestamp startTime = null;
+        Timestamp endTime = null;
+        
+        if (StringUtils.hasText(queryDTO.getGmtCreateStart())) {
+            startTime = parseTimestamp(queryDTO.getGmtCreateStart());
+        }
+        
+        if (StringUtils.hasText(queryDTO.getGmtCreateEnd())) {
+            endTime = parseTimestamp(queryDTO.getGmtCreateEnd());
+        }
+        
+        // 如果没有要排除的用户ID，使用原来的查询方法
+        if (excludeUserIds == null || excludeUserIds.isEmpty()) {
+            log.debug("没有要排除的用户，使用标准查询");
+            return userRepository.findUsersWithFilters(
+                    queryDTO.getUsername(),
+                    queryDTO.getEmail(),
+                    queryDTO.getPhone(),
+                    startTime,
+                    endTime,
+                    pageable
+            );
+        }
+        
+        // 有要排除的用户ID，使用带排除条件的查询
+        log.debug("使用带排除条件的查询，排除用户: {}", excludeUserIds);
+        return userRepository.findUsersWithFiltersAndExclusions(
+                queryDTO.getUsername(),
+                queryDTO.getEmail(),
+                queryDTO.getPhone(),
+                startTime,
+                endTime,
+                excludeUserIds,
+                pageable
+        );
+    }
+    
+    /**
      * 将分页查询结果转换为VO
      * 
      * @param userPage 分页查询结果

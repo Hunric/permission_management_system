@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -137,6 +138,84 @@ public class UserPermissionComponent {
         } catch (Exception e) {
             log.warn("检查超级管理员权限时发生异常，用户ID: {}, 错误: {}", userId, e.getMessage());
             return false;
+        }
+    }
+    
+    /**
+     * 获取需要从用户列表中排除的用户ID列表
+     * 
+     * <p>根据当前用户的角色权限，确定哪些用户不应该在分页查询结果中显示：</p>
+     * <ul>
+     *   <li>管理员：只能查看普通用户，需要排除admin和super_admin角色的用户</li>
+     *   <li>超级管理员：可以查看所有其他用户，只需要排除自己</li>
+     * </ul>
+     * 
+     * @return 需要排除的用户ID列表
+     */
+    public List<Long> getExcludedUserIds() {
+        log.debug("获取需要排除的用户ID列表");
+        
+        // 获取当前用户ID
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        if (currentUserId == null) {
+            log.warn("获取排除用户列表失败：用户未认证");
+            throw new SecurityException("用户未认证");
+        }
+        
+        try {
+            // 查询当前用户角色
+            UserRoleResponse currentUserRole = getUserRole(currentUserId);
+            if (currentUserRole == null) {
+                log.warn("获取排除用户列表失败：用户未分配角色，用户ID: {}", currentUserId);
+                throw new SecurityException("用户未分配角色");
+            }
+            
+            List<Long> excludedUserIds = new ArrayList<>();
+            
+            if ("super_admin".equals(currentUserRole.getRoleCode())) {
+                // 超级管理员：可以查看所有其他用户，只排除自己
+                excludedUserIds.add(currentUserId);
+                log.debug("超级管理员权限：排除自己，用户ID: {}", currentUserId);
+                
+            } else if ("admin".equals(currentUserRole.getRoleCode())) {
+                // 管理员：只能查看普通用户，排除所有admin和super_admin角色的用户
+                excludedUserIds.add(currentUserId); // 排除自己
+                
+                // 查询所有admin和super_admin角色的用户
+                try {
+                    ApiResponse<List<Long>> response = permissionFeignClient.getUserIdsByRoleCodes("admin,super_admin");
+                    if (response != null && response.getData() != null) {
+                        List<Long> adminAndSuperAdminIds = response.getData();
+                        for (Long userId : adminAndSuperAdminIds) {
+                            if (!excludedUserIds.contains(userId)) {
+                                excludedUserIds.add(userId);
+                            }
+                        }
+                    } else {
+                        log.warn("权限服务返回空数据，无法获取admin和super_admin用户列表");
+                    }
+                } catch (Exception e) {
+                    log.warn("查询admin和super_admin用户列表失败: {}, 仅排除当前用户", e.getMessage());
+                    // 发生异常时，仅排除当前用户，确保不会完全失败
+                }
+                
+                log.debug("管理员权限：排除admin和super_admin角色用户，总计排除 {} 个用户", excludedUserIds.size());
+                
+            } else {
+                // 普通用户：没有查看用户列表的权限
+                log.warn("权限验证失败：普通用户没有查看用户列表的权限，用户ID: {}, 角色: {}", 
+                        currentUserId, currentUserRole.getRoleCode());
+                throw new SecurityException("权限不足，需要管理员权限");
+            }
+            
+            return excludedUserIds;
+            
+        } catch (SecurityException e) {
+            // 重新抛出安全异常
+            throw e;
+        } catch (Exception e) {
+            log.error("获取排除用户列表失败，用户ID: {}, 错误: {}", currentUserId, e.getMessage(), e);
+            throw new SecurityException("获取权限信息失败: " + e.getMessage());
         }
     }
 } 

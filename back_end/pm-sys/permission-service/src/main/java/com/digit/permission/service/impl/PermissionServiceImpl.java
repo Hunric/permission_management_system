@@ -20,6 +20,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpServletRequest;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -403,6 +405,29 @@ import java.util.Optional;
         } catch (Exception e) {
             log.error("为超级管理员绑定特殊角色失败，用户ID: {}, 错误: {}", userId, e.getMessage(), e);
             throw new RuntimeException("绑定超级管理员角色失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 根据角色代码查询用户ID列表
+     */
+    @Override
+    public List<Long> getUserIdsByRoleCodes(List<String> roleCodes) {
+        log.debug("根据角色代码查询用户ID列表，角色代码: {}", roleCodes);
+        
+        try {
+            if (roleCodes == null || roleCodes.isEmpty()) {
+                log.warn("角色代码列表为空");
+                return new ArrayList<>();
+            }
+            
+            List<Long> userIds = userRoleRepository.findUserIdsByRoleCodes(roleCodes);
+            log.debug("查询到 {} 个用户，角色代码: {}", userIds.size(), roleCodes);
+            return userIds;
+            
+        } catch (Exception e) {
+            log.error("根据角色代码查询用户ID列表失败，角色代码: {}, 错误: {}", roleCodes, e.getMessage(), e);
+            throw new RuntimeException("查询用户ID列表失败: " + e.getMessage(), e);
         }
     }
     
