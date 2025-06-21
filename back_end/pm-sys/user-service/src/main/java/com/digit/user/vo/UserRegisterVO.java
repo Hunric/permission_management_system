@@ -4,6 +4,7 @@ package com.digit.user.vo;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 
 /**
  * User Registration Response Value Object
@@ -12,6 +13,7 @@ import lombok.AllArgsConstructor;
  * @version 1.0.0
  */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserRegisterVO {
@@ -25,4 +27,14 @@ public class UserRegisterVO {
      * Username
      */
     private String username;
+    
+    /**
+     * Email address
+     */
+    private String email;
+    
+    /**
+     * Phone number
+     */
+    private String phone;
 }
