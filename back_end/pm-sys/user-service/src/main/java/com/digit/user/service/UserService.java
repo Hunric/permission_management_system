@@ -3,6 +3,7 @@ package com.digit.user.service;
 import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
+import com.digit.user.dto.UserUpdateDTO;
 import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserPageVO;
@@ -450,4 +451,85 @@ public interface UserService {
      * @apiNote 该方法涉及跨服务调用和复杂查询，建议合理设置超时时间和缓存策略
      */
     UserPageVO getUsers(UserPageQueryDTO queryDTO);
+    
+    /**
+     * 查询指定用户信息服务方法
+     * 
+     * <p>根据用户ID查询指定用户的详细信息，支持权限控制。
+     * 用户本人、管理员和超级管理员可以查询用户信息。</p>
+     * 
+     * <p><strong>权限控制：</strong></p>
+     * <ul>
+     *   <li>用户本人：可以查询自己的信息</li>
+     *   <li>管理员：可以查询普通用户的信息</li>
+     *   <li>超级管理员：可以查询所有用户的信息</li>
+     * </ul>
+     * 
+     * <p><strong>业务流程：</strong></p>
+     * <ol>
+     *   <li>验证JWT令牌获取当前操作者ID</li>
+     *   <li>检查是否为本人操作</li>
+     *   <li>如非本人，通过权限服务验证角色权限</li>
+     *   <li>执行用户信息查询</li>
+     *   <li>返回用户信息（过滤敏感数据）</li>
+     * </ol>
+     * 
+     * @param userId 要查询的用户ID
+     * @return 用户信息VO对象
+     * @throws IllegalArgumentException 当用户ID无效时
+     * @throws UserNotFoundException 当用户不存在时
+     * @throws SecurityException 当权限不足时
+     * @throws ServiceException 当权限服务调用失败时
+     */
+    UserInfoVO getUserById(Long userId);
+    
+    /**
+     * 更新指定用户信息服务方法
+     * 
+     * <p>更新指定用户的个人信息，支持权限控制和变更日志记录。
+     * 用户本人、管理员和超级管理员可以修改用户信息。</p>
+     * 
+     * <p><strong>权限控制：</strong></p>
+     * <ul>
+     *   <li>用户本人：可以修改自己的信息</li>
+     *   <li>管理员：可以修改普通用户的信息</li>
+     *   <li>超级管理员：可以修改所有用户的信息</li>
+     * </ul>
+     * 
+     * <p><strong>可修改字段：</strong></p>
+     * <ul>
+     *   <li>邮箱地址 - 需要格式验证</li>
+     *   <li>手机号码 - 需要格式验证</li>
+     * </ul>
+     * 
+     * <p><strong>不可修改字段：</strong></p>
+     * <ul>
+     *   <li>用户ID - 系统唯一标识符</li>
+     *   <li>用户名 - 登录凭证，创建后不可修改</li>
+     *   <li>密码 - 通过专门的密码修改接口处理</li>
+     * </ul>
+     * 
+     * <p><strong>业务流程：</strong></p>
+     * <ol>
+     *   <li>验证JWT令牌获取当前操作者ID</li>
+     *   <li>检查是否为本人操作</li>
+     *   <li>如非本人，通过权限服务验证角色权限</li>
+     *   <li>验证更新数据的有效性</li>
+     *   <li>查询原始用户信息</li>
+     *   <li>执行信息更新操作</li>
+     *   <li>生成变更日志</li>
+     *   <li>异步发送操作日志消息</li>
+     *   <li>返回更新后的用户信息</li>
+     * </ol>
+     * 
+     * @param userId 要更新的用户ID
+     * @param updateDTO 更新数据传输对象
+     * @return 更新后的用户信息VO对象
+     * @throws IllegalArgumentException 当参数无效时
+     * @throws UserNotFoundException 当用户不存在时
+     * @throws SecurityException 当权限不足时
+     * @throws ServiceException 当权限服务调用失败时
+     * @throws DataAccessException 当数据库操作失败时
+     */
+    UserInfoVO updateUserById(Long userId, UserUpdateDTO updateDTO);
 } 

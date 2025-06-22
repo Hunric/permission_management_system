@@ -3,6 +3,7 @@ package com.digit.user.service.impl;
 import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
+import com.digit.user.dto.UserUpdateDTO;
 import com.digit.user.entity.User;
 import com.digit.user.service.UserService;
 import com.digit.user.service.component.LoggingComponent;
@@ -10,6 +11,8 @@ import com.digit.user.service.component.UserAuthenticationComponent;
 import com.digit.user.service.component.UserPermissionComponent;
 import com.digit.user.service.component.UserQueryComponent;
 import com.digit.user.service.component.UserRegistrationComponent;
+import com.digit.user.service.component.UserUpdateComponent;
+import com.digit.user.util.SecurityUtil;
 import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
 import com.digit.user.vo.UserPageVO;
@@ -50,6 +53,7 @@ public class UserServiceImpl implements UserService {
     private final UserAuthenticationComponent userAuthenticationComponent;
     private final UserQueryComponent userQueryComponent;
     private final UserPermissionComponent userPermissionComponent;
+    private final UserUpdateComponent userUpdateComponent;
     private final LoggingComponent loggingComponent;
     
     /**
@@ -221,6 +225,127 @@ public class UserServiceImpl implements UserService {
             throw e;
         } catch (Exception e) {
             log.error("分页查询用户列表失败，错误: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+    
+    /**
+     * 查询指定用户信息实现
+     * 
+     * <p>按照以下步骤执行：</p>
+     * <ol>
+     *   <li>获取当前操作者用户ID</li>
+     *   <li>验证查看权限（本人或管理员）</li>
+     *   <li>查询用户信息</li>
+     *   <li>转换并返回结果</li>
+     * </ol>
+     * 
+     * @param userId 要查询的用户ID
+     * @return 用户信息VO
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public UserInfoVO getUserById(Long userId) {
+        log.info("查询指定用户信息请求，用户ID: {}", userId);
+        
+        try {
+            // 步骤 1: 获取当前操作者用户ID
+            log.debug("步骤 1: 获取当前操作者用户ID");
+            Long currentUserId = SecurityUtil.getCurrentUserId();
+            
+            // 步骤 2: 验证查看权限（本人或管理员）
+            log.debug("步骤 2: 验证查看权限，当前用户ID: {}, 目标用户ID: {}", currentUserId, userId);
+            if (!currentUserId.equals(userId)) {
+                // 不是本人操作，需要验证管理员权限
+                userPermissionComponent.verifyAdminOrSuperAdminPermission(currentUserId);
+            }
+            
+            // 步骤 3: 查询用户信息
+            log.debug("步骤 3: 查询用户信息");
+            User user = userUpdateComponent.findUserById(userId);
+            
+            // 步骤 4: 转换并返回结果
+            log.debug("步骤 4: 转换用户信息为VO");
+            UserInfoVO result = userUpdateComponent.convertUserToInfoVO(user);
+            
+            log.info("查询指定用户信息成功，用户ID: {}, 用户名: {}", userId, user.getUsername());
+            return result;
+            
+        } catch (SecurityException e) {
+            log.warn("查询指定用户信息权限不足，用户ID: {}, 错误: {}", userId, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("查询指定用户信息失败，用户ID: {}, 错误: {}", userId, e.getMessage(), e);
+            throw e;
+        }
+    }
+    
+    /**
+     * 更新指定用户信息实现
+     * 
+     * <p>按照以下步骤执行：</p>
+     * <ol>
+     *   <li>获取当前操作者用户ID</li>
+     *   <li>验证更新权限（本人或管理员）</li>
+     *   <li>验证更新数据有效性</li>
+     *   <li>查询目标用户信息</li>
+     *   <li>执行更新操作</li>
+     *   <li>异步发送更新日志</li>
+     *   <li>转换并返回结果</li>
+     * </ol>
+     * 
+     * @param userId 要更新的用户ID
+     * @param updateDTO 更新数据DTO
+     * @return 更新后的用户信息VO
+     */
+    @Override
+    @GlobalTransactional(name = "user-update-tx", rollbackFor = Exception.class)
+    public UserInfoVO updateUserById(Long userId, UserUpdateDTO updateDTO) {
+        log.info("更新指定用户信息请求，用户ID: {}, 更新字段: {}", userId, updateDTO.getUpdateFields());
+        
+        try {
+            // 步骤 1: 获取当前操作者用户ID
+            log.debug("步骤 1: 获取当前操作者用户ID");
+            Long currentUserId = SecurityUtil.getCurrentUserId();
+            
+            // 步骤 2: 验证更新权限（本人或管理员）
+            log.debug("步骤 2: 验证更新权限，当前用户ID: {}, 目标用户ID: {}", currentUserId, userId);
+            if (!currentUserId.equals(userId)) {
+                // 不是本人操作，需要验证管理员权限
+                userPermissionComponent.verifyAdminOrSuperAdminPermission(currentUserId);
+            }
+            
+            // 步骤 3: 验证更新数据有效性
+            log.debug("步骤 3: 验证更新数据有效性");
+            userUpdateComponent.validateUpdateData(updateDTO);
+            
+            // 步骤 4: 查询目标用户信息
+            log.debug("步骤 4: 查询目标用户信息");
+            User targetUser = userUpdateComponent.findUserById(userId);
+            
+            // 步骤 5: 执行更新操作
+            log.debug("步骤 5: 执行更新操作");
+            String changeDetails = userUpdateComponent.generateChangeDetails(targetUser, updateDTO);
+            User updatedUser = userUpdateComponent.updateUserInfo(targetUser, updateDTO);
+            
+            // 步骤 6: 异步发送更新日志
+            log.debug("步骤 6: 异步发送更新日志");
+            loggingComponent.sendUpdateUserLogAsync(updatedUser, currentUserId, changeDetails);
+            
+            // 步骤 7: 转换并返回结果
+            log.debug("步骤 7: 转换更新结果为VO");
+            UserInfoVO result = userUpdateComponent.convertUserToInfoVO(updatedUser);
+            
+            log.info("更新指定用户信息成功，用户ID: {}, 操作者ID: {}, 变更详情: {}", 
+                    userId, currentUserId, changeDetails);
+            return result;
+            
+        } catch (SecurityException e) {
+            log.warn("更新指定用户信息权限不足，用户ID: {}, 操作者ID: {}, 错误: {}", 
+                    userId, SecurityUtil.getCurrentUserId(), e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("更新指定用户信息失败，用户ID: {}, 错误: {}", userId, e.getMessage(), e);
             throw e;
         }
     }

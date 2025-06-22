@@ -93,6 +93,37 @@ public class LoggingComponent {
     }
     
     /**
+     * 异步发送用户信息更新日志
+     * 
+     * @param user 更新后的用户实体
+     * @param operatorId 操作者用户ID
+     * @param changeDetails 变更详情JSON字符串
+     */
+    public void sendUpdateUserLogAsync(User user, Long operatorId, String changeDetails) {
+        try {
+            String traceId = getTraceId();
+            String clientIp = IpAddressUtil.getClientRealIp();
+            String detail = buildUpdateUserDetail(user, operatorId, changeDetails);
+            
+            OperationLogMessage logMessage = OperationLogMessage.builder()
+                    .userId(operatorId)  // 使用操作者ID作为日志主体
+                    .traceId(traceId)
+                    .action("UPDATE_USER_INFO")
+                    .ip(clientIp)
+                    .detail(detail)
+                    .gmtCreate(new Timestamp(System.currentTimeMillis()))
+                    .build();
+            
+            rocketMQTemplate.asyncSend(OPERATION_LOG_TOPIC, logMessage, new LogSendCallback("用户信息更新"));
+            log.debug("用户信息更新日志消息已发送到MQ，目标用户ID: {}, 操作者ID: {}", user.getUserId(), operatorId);
+            
+        } catch (Exception e) {
+            log.error("发送用户信息更新日志失败，目标用户ID: {}, 操作者ID: {}, 错误: {}", 
+                    user.getUserId(), operatorId, e.getMessage());
+        }
+    }
+    
+    /**
      * 获取链路追踪ID
      * 
      * @return 链路追踪ID
@@ -134,6 +165,21 @@ public class LoggingComponent {
         return String.format("{\"action\":\"user_login\",\"username\":\"%s\",\"userId\":%d}",
                 escapeJson(user.getUsername()),
                 user.getUserId());
+    }
+    
+    /**
+     * 构建用户信息更新详情JSON
+     * 
+     * @param user 更新后的用户实体
+     * @param operatorId 操作者用户ID
+     * @param changeDetails 变更详情JSON字符串
+     * @return JSON格式的详情字符串
+     */
+    private String buildUpdateUserDetail(User user, Long operatorId, String changeDetails) {
+        return String.format("{\"action\":\"update_user_info\",\"userId\":%d,\"operatorId\":%d,\"changeDetails\":%s}",
+                user.getUserId(),
+                operatorId,
+                changeDetails);  // changeDetails已经是JSON格式，不需要再次转义
     }
     
     /**

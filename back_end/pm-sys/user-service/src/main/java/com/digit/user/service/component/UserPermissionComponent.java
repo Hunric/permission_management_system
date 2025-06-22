@@ -218,4 +218,38 @@ public class UserPermissionComponent {
             throw new SecurityException("获取权限信息失败: " + e.getMessage());
         }
     }
+    
+    /**
+     * 验证指定用户是否具有管理员或超级管理员权限
+     * 
+     * @param userId 要验证的用户ID
+     * @throws SecurityException 如果用户没有管理员权限
+     */
+    public void verifyAdminOrSuperAdminPermission(Long userId) {
+        log.debug("验证用户管理员权限，用户ID: {}", userId);
+        
+        try {
+            // 查询用户角色
+            UserRoleResponse userRole = getUserRole(userId);
+            if (userRole == null) {
+                log.warn("权限验证失败：用户未分配角色，用户ID: {}", userId);
+                throw new SecurityException("用户未分配角色");
+            }
+            
+            // 检查是否为管理员或超级管理员角色
+            if (!ADMIN_ROLES.contains(userRole.getRoleCode())) {
+                log.warn("权限验证失败：用户权限不足，用户ID: {}, 角色: {}", userId, userRole.getRoleCode());
+                throw new SecurityException("权限不足，需要管理员或超级管理员权限");
+            }
+            
+            log.debug("权限验证通过，用户ID: {}, 角色: {}", userId, userRole.getRoleCode());
+            
+        } catch (SecurityException e) {
+            // 重新抛出安全异常
+            throw e;
+        } catch (Exception e) {
+            log.error("权限验证失败，用户ID: {}, 错误: {}", userId, e.getMessage());
+            throw new SecurityException("权限验证失败: " + e.getMessage());
+        }
+    }
 } 

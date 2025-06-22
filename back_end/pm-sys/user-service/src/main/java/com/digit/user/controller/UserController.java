@@ -4,6 +4,7 @@ import com.digit.user.dto.ApiResponse;
 import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
+import com.digit.user.dto.UserUpdateDTO;
 import com.digit.user.service.UserService;
 import com.digit.user.util.SecurityUtil;
 import com.digit.user.vo.UserInfoVO;
@@ -117,5 +118,69 @@ public class UserController {
         UserPageVO result = userService.getUsers(queryDTO);
         ApiResponse<UserPageVO> response = ApiResponse.success("查询用户列表成功", result);
         return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Get specific user info endpoint (Self or Admin/Super Admin only)
+     * 
+     * @param userId 用户ID
+     * @return 用户信息
+     */
+    @GetMapping("/{userId}")
+    public ResponseEntity<ApiResponse<UserInfoVO>> getUserById(@PathVariable Long userId) {
+        log.info("查询指定用户信息请求，用户ID: {}", userId);
+        
+        try {
+            UserInfoVO result = userService.getUserById(userId);
+            ApiResponse<UserInfoVO> response = ApiResponse.success("查询用户信息成功", result);
+            return ResponseEntity.ok(response);
+            
+        } catch (SecurityException e) {
+            log.warn("查询用户信息权限不足，用户ID: {}, 错误: {}", userId, e.getMessage());
+            ApiResponse<UserInfoVO> response = ApiResponse.forbidden("权限不足");
+            return ResponseEntity.status(403).body(response);
+            
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("用户不存在")) {
+                log.warn("查询用户信息失败，用户不存在，用户ID: {}", userId);
+                ApiResponse<UserInfoVO> response = ApiResponse.notFound("用户不存在");
+                return ResponseEntity.status(404).body(response);
+            }
+            throw e;
+        }
+    }
+    
+    /**
+     * Update specific user info endpoint (Self or Admin/Super Admin only)
+     * 
+     * @param userId 用户ID
+     * @param updateDTO 更新数据
+     * @return 更新后的用户信息
+     */
+    @PutMapping("/{userId}")
+    public ResponseEntity<ApiResponse<UserInfoVO>> updateUserById(
+            @PathVariable Long userId, 
+            @Valid @RequestBody UserUpdateDTO updateDTO) {
+        
+        log.info("更新指定用户信息请求，用户ID: {}, 更新字段: {}", userId, updateDTO.getUpdateFields());
+        
+        try {
+            UserInfoVO result = userService.updateUserById(userId, updateDTO);
+            ApiResponse<UserInfoVO> response = ApiResponse.success("更新用户信息成功", result);
+            return ResponseEntity.ok(response);
+            
+        } catch (SecurityException e) {
+            log.warn("更新用户信息权限不足，用户ID: {}, 错误: {}", userId, e.getMessage());
+            ApiResponse<UserInfoVO> response = ApiResponse.forbidden("权限不足");
+            return ResponseEntity.status(403).body(response);
+            
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("用户不存在")) {
+                log.warn("更新用户信息失败，用户不存在，用户ID: {}", userId);
+                ApiResponse<UserInfoVO> response = ApiResponse.notFound("用户不存在");
+                return ResponseEntity.status(404).body(response);
+            }
+            throw e;
+        }
     }
 }
