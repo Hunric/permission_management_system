@@ -124,6 +124,66 @@ public class LoggingComponent {
     }
     
     /**
+     * 异步发送用户密码修改日志
+     * 
+     * @param user 用户实体
+     * @param changeDetails 变更详情JSON字符串
+     */
+    public void sendChangePasswordLogAsync(User user, String changeDetails) {
+        try {
+            String traceId = getTraceId();
+            String clientIp = IpAddressUtil.getClientRealIp();
+            String detail = buildPasswordChangeDetail(user, "CHANGE_PASSWORD", changeDetails);
+            
+            OperationLogMessage logMessage = OperationLogMessage.builder()
+                    .userId(user.getUserId())
+                    .traceId(traceId)
+                    .action("CHANGE_PASSWORD")
+                    .ip(clientIp)
+                    .detail(detail)
+                    .gmtCreate(new Timestamp(System.currentTimeMillis()))
+                    .build();
+            
+            rocketMQTemplate.asyncSend(OPERATION_LOG_TOPIC, logMessage, new LogSendCallback("密码修改"));
+            log.debug("密码修改日志消息已发送到MQ，用户ID: {}", user.getUserId());
+            
+        } catch (Exception e) {
+            log.error("发送密码修改日志失败，用户ID: {}, 错误: {}", user.getUserId(), e.getMessage());
+        }
+    }
+    
+    /**
+     * 异步发送用户密码重置日志
+     * 
+     * @param user 目标用户实体
+     * @param operatorId 操作者用户ID
+     * @param changeDetails 变更详情JSON字符串
+     */
+    public void sendResetPasswordLogAsync(User user, Long operatorId, String changeDetails) {
+        try {
+            String traceId = getTraceId();
+            String clientIp = IpAddressUtil.getClientRealIp();
+            String detail = buildPasswordResetDetail(user, operatorId, changeDetails);
+            
+            OperationLogMessage logMessage = OperationLogMessage.builder()
+                    .userId(operatorId)  // 使用操作者ID作为日志主体
+                    .traceId(traceId)
+                    .action("RESET_PASSWORD")
+                    .ip(clientIp)
+                    .detail(detail)
+                    .gmtCreate(new Timestamp(System.currentTimeMillis()))
+                    .build();
+            
+            rocketMQTemplate.asyncSend(OPERATION_LOG_TOPIC, logMessage, new LogSendCallback("密码重置"));
+            log.debug("密码重置日志消息已发送到MQ，目标用户ID: {}, 操作者ID: {}", user.getUserId(), operatorId);
+            
+        } catch (Exception e) {
+            log.error("发送密码重置日志失败，目标用户ID: {}, 操作者ID: {}, 错误: {}", 
+                    user.getUserId(), operatorId, e.getMessage());
+        }
+    }
+    
+    /**
      * 获取链路追踪ID
      * 
      * @return 链路追踪ID
@@ -179,7 +239,39 @@ public class LoggingComponent {
         return String.format("{\"action\":\"update_user_info\",\"userId\":%d,\"operatorId\":%d,\"changeDetails\":%s}",
                 user.getUserId(),
                 operatorId,
-                changeDetails);  // changeDetails已经是JSON格式，不需要再次转义
+                changeDetails);
+    }
+    
+    /**
+     * 构建密码修改详情JSON
+     * 
+     * @param user 用户实体
+     * @param action 操作类型
+     * @param changeDetails 变更详情JSON字符串
+     * @return JSON格式的详情字符串
+     */
+    private String buildPasswordChangeDetail(User user, String action, String changeDetails) {
+        return String.format("{\"action\":\"%s\",\"userId\":%d,\"username\":\"%s\",\"details\":%s}",
+                action,
+                user.getUserId(),
+                escapeJson(user.getUsername()),
+                changeDetails);
+    }
+    
+    /**
+     * 构建密码重置详情JSON
+     * 
+     * @param user 目标用户实体
+     * @param operatorId 操作者用户ID
+     * @param changeDetails 变更详情JSON字符串
+     * @return JSON格式的详情字符串
+     */
+    private String buildPasswordResetDetail(User user, Long operatorId, String changeDetails) {
+        return String.format("{\"action\":\"reset_password\",\"targetUserId\":%d,\"targetUsername\":\"%s\",\"operatorId\":%d,\"details\":%s}",
+                user.getUserId(),
+                escapeJson(user.getUsername()),
+                operatorId,
+                changeDetails);
     }
     
     /**

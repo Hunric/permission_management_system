@@ -5,6 +5,8 @@ import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
 import com.digit.user.dto.UserUpdateDTO;
+import com.digit.user.dto.ChangePasswordDTO;
+import com.digit.user.dto.ResetPasswordResponse;
 import com.digit.user.service.UserService;
 import com.digit.user.util.SecurityUtil;
 import com.digit.user.vo.UserInfoVO;
@@ -13,6 +15,7 @@ import com.digit.user.vo.UserPageVO;
 import com.digit.user.vo.UserRegisterVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -181,6 +184,83 @@ public class UserController {
                 return ResponseEntity.status(404).body(response);
             }
             throw e;
+        }
+    }
+    
+    /**
+     * 修改当前用户密码端点
+     * 
+     * <p>用户可以通过提供旧密码和新密码来修改自己的密码。</p>
+     * 
+     * @param changePasswordDTO 密码修改请求数据
+     * @return API响应
+     */
+    @PutMapping("/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(@Valid @RequestBody ChangePasswordDTO changePasswordDTO) {
+        log.info("收到修改密码请求");
+        
+        try {
+            userService.changePassword(changePasswordDTO);
+            
+            log.info("修改密码成功");
+            return ResponseEntity.ok(ApiResponse.success("密码修改成功", null));
+            
+        } catch (RuntimeException e) {
+            log.warn("修改密码失败: {}", e.getMessage());
+            
+            if (e.getMessage().contains("旧密码不正确")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("400", "旧密码不正确"));
+            } else if (e.getMessage().contains("用户不存在")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("404", "用户不存在"));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("400", e.getMessage()));
+            }
+        } catch (Exception e) {
+            log.error("修改密码失败，错误: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("500", "修改密码失败: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * 重置指定用户密码端点
+     * 
+     * <p>管理员或超级管理员可以重置其他用户的密码为默认密码。</p>
+     * 
+     * @param userId 要重置密码的用户ID
+     * @return API响应，包含新的临时密码
+     */
+    @PostMapping("/user/{userId}/reset-password")
+    public ResponseEntity<ApiResponse<ResetPasswordResponse>> resetPassword(@PathVariable Long userId) {
+        log.info("收到重置密码请求，目标用户ID: {}", userId);
+        
+        try {
+            ResetPasswordResponse response = userService.resetPassword(userId);
+            
+            log.info("重置密码成功，目标用户ID: {}", userId);
+            return ResponseEntity.ok(ApiResponse.success("密码重置成功", response));
+            
+        } catch (SecurityException e) {
+            log.warn("重置密码权限不足，目标用户ID: {}, 错误: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("403", "权限不足"));
+        } catch (RuntimeException e) {
+            log.warn("重置密码失败，目标用户ID: {}, 错误: {}", userId, e.getMessage());
+            
+            if (e.getMessage().contains("用户不存在")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("404", "用户不存在"));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("400", e.getMessage()));
+            }
+        } catch (Exception e) {
+            log.error("重置密码失败，目标用户ID: {}, 错误: {}", userId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("500", "重置密码失败: " + e.getMessage()));
         }
     }
 }

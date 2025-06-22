@@ -1,17 +1,28 @@
 package com.digit.user.service.impl;
 
+import com.digit.user.dto.ApiResponse;
 import com.digit.user.dto.UserLoginDTO;
 import com.digit.user.dto.UserPageQueryDTO;
 import com.digit.user.dto.UserRegisterDTO;
 import com.digit.user.dto.UserUpdateDTO;
+import com.digit.user.dto.ChangePasswordDTO;
+import com.digit.user.dto.ResetPasswordResponse;
 import com.digit.user.entity.User;
+import com.digit.user.exception.AuthenticationException;
+import com.digit.user.exception.BusinessException;
+import com.digit.user.exception.UserAlreadyExistsException;
+import com.digit.user.exception.UserNotFoundException;
+import com.digit.user.rcp.PermissionFeignClient;
+import com.digit.user.repository.UserRepository;
 import com.digit.user.service.UserService;
 import com.digit.user.service.component.LoggingComponent;
+import com.digit.user.service.component.SuperAdminInitializer;
 import com.digit.user.service.component.UserAuthenticationComponent;
 import com.digit.user.service.component.UserPermissionComponent;
 import com.digit.user.service.component.UserQueryComponent;
 import com.digit.user.service.component.UserRegistrationComponent;
 import com.digit.user.service.component.UserUpdateComponent;
+import com.digit.user.service.component.PasswordManagementComponent;
 import com.digit.user.util.SecurityUtil;
 import com.digit.user.vo.UserInfoVO;
 import com.digit.user.vo.UserLoginVO;
@@ -55,6 +66,7 @@ public class UserServiceImpl implements UserService {
     private final UserPermissionComponent userPermissionComponent;
     private final UserUpdateComponent userUpdateComponent;
     private final LoggingComponent loggingComponent;
+    private final PasswordManagementComponent passwordManagementComponent;
     
     /**
      * 用户注册实现
@@ -347,6 +359,104 @@ public class UserServiceImpl implements UserService {
         } catch (Exception e) {
             log.error("更新指定用户信息失败，用户ID: {}, 错误: {}", userId, e.getMessage(), e);
             throw e;
+        }
+    }
+    
+    /**
+     * 修改当前用户密码实现
+     * 
+     * <p>按照以下步骤执行：</p>
+     * <ol>
+     *   <li>从JWT中获取当前用户ID</li>
+     *   <li>查询用户信息</li>
+     *   <li>验证旧密码</li>
+     *   <li>更新为新密码</li>
+     *   <li>异步记录操作日志</li>
+     * </ol>
+     */
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordDTO changePasswordDTO) {
+        log.info("用户密码修改请求");
+        
+        try {
+            // 步骤 1: 从JWT中获取当前用户ID
+            log.debug("步骤 1: 从JWT中获取当前用户ID");
+            Long currentUserId = SecurityUtil.getCurrentUserId();
+            
+            // 步骤 2: 查询用户信息
+            log.debug("步骤 2: 查询用户信息，用户ID: {}", currentUserId);
+            User user = passwordManagementComponent.findUserById(currentUserId);
+            
+            // 步骤 3: 修改密码（包含旧密码验证）
+            log.debug("步骤 3: 修改密码");
+            User updatedUser = passwordManagementComponent.changePassword(user, changePasswordDTO);
+            
+            // 步骤 4: 异步记录操作日志
+            log.debug("步骤 4: 异步记录操作日志");
+            String changeDetails = passwordManagementComponent.generatePasswordChangeDetails(updatedUser, "CHANGE_PASSWORD");
+            loggingComponent.sendChangePasswordLogAsync(updatedUser, changeDetails);
+            
+            log.info("用户密码修改成功，用户ID: {}", currentUserId);
+            
+        } catch (RuntimeException e) {
+            // 重新抛出运行时异常（包括密码验证失败等）
+            throw e;
+        } catch (Exception e) {
+            log.error("修改用户密码失败，错误: {}", e.getMessage(), e);
+            throw new RuntimeException("修改密码失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 重置指定用户密码实现
+     * 
+     * <p>按照以下步骤执行：</p>
+     * <ol>
+     *   <li>从JWT中获取当前操作者ID</li>
+     *   <li>验证操作者权限（管理员或超级管理员）</li>
+     *   <li>查询目标用户信息</li>
+     *   <li>重置密码为默认密码</li>
+     *   <li>异步记录操作日志</li>
+     *   <li>返回重置结果</li>
+     * </ol>
+     */
+    @Override
+    @Transactional
+    public ResetPasswordResponse resetPassword(Long userId) {
+        log.info("重置用户密码请求，目标用户ID: {}", userId);
+        
+        try {
+            // 步骤 1: 从JWT中获取当前操作者ID
+            log.debug("步骤 1: 从JWT中获取当前操作者ID");
+            Long currentUserId = SecurityUtil.getCurrentUserId();
+            
+            // 步骤 2: 验证操作者权限
+            log.debug("步骤 2: 验证操作者权限，操作者ID: {}", currentUserId);
+            userPermissionComponent.verifyAdminOrSuperAdminPermission(currentUserId);
+            
+            // 步骤 3: 查询目标用户信息
+            log.debug("步骤 3: 查询目标用户信息，用户ID: {}", userId);
+            User targetUser = passwordManagementComponent.findUserById(userId);
+            
+            // 步骤 4: 重置密码
+            log.debug("步骤 4: 重置密码");
+            ResetPasswordResponse response = passwordManagementComponent.resetPassword(targetUser);
+            
+            // 步骤 5: 异步记录操作日志
+            log.debug("步骤 5: 异步记录操作日志");
+            String changeDetails = passwordManagementComponent.generatePasswordChangeDetails(targetUser, "RESET_PASSWORD");
+            loggingComponent.sendResetPasswordLogAsync(targetUser, currentUserId, changeDetails);
+            
+            log.info("重置用户密码成功，目标用户ID: {}, 操作者ID: {}", userId, currentUserId);
+            return response;
+            
+        } catch (SecurityException e) {
+            // 重新抛出安全异常
+            throw e;
+        } catch (Exception e) {
+            log.error("重置用户密码失败，目标用户ID: {}, 错误: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("重置密码失败: " + e.getMessage());
         }
     }
 } 
