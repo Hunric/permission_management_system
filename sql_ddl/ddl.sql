@@ -28,6 +28,18 @@ CREATE TABLE users_1 (
                          UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表分片1';
 
+-- Seata AT 模式 undo_log 表 (适用于 Seata 1.5.x 版本)
+CREATE TABLE IF NOT EXISTS `undo_log` (
+    `branch_id` BIGINT NOT NULL COMMENT 'branch transaction id',
+    `xid` VARCHAR(128) NOT NULL COMMENT 'global transaction id',
+    `context` VARCHAR(128) NOT NULL COMMENT 'undo_log context,such as serialization',
+    `rollback_info` LONGBLOB NOT NULL COMMENT 'rollback info',
+    `log_status` INT NOT NULL COMMENT '0:normal status,1:defense status',
+    `log_created` DATETIME(6) NOT NULL COMMENT 'create datetime',
+    `log_modified` DATETIME(6) NOT NULL COMMENT 'modify datetime',
+    UNIQUE KEY `ux_undo_log` (`xid`, `branch_id`)
+) ENGINE = InnoDB AUTO_INCREMENT = 1 DEFAULT CHARSET = utf8mb4 COMMENT ='AT transaction mode undo table';
+
 
 -- ----------------------------------------------------------------------------------------------
 --  divide
@@ -63,6 +75,18 @@ CREATE TABLE users_1 (
                          PRIMARY KEY (`user_id`),
                          UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表分片1';
+
+-- Seata AT 模式 undo_log 表 (适用于 Seata 1.5.x 版本)
+CREATE TABLE IF NOT EXISTS `undo_log` (
+    `branch_id` BIGINT NOT NULL COMMENT 'branch transaction id',
+    `xid` VARCHAR(128) NOT NULL COMMENT 'global transaction id',
+    `context` VARCHAR(128) NOT NULL COMMENT 'undo_log context,such as serialization',
+    `rollback_info` LONGBLOB NOT NULL COMMENT 'rollback info',
+    `log_status` INT NOT NULL COMMENT '0:normal status,1:defense status',
+    `log_created` DATETIME(6) NOT NULL COMMENT 'create datetime',
+    `log_modified` DATETIME(6) NOT NULL COMMENT 'modify datetime',
+    UNIQUE KEY `ux_undo_log` (`xid`, `branch_id`)
+) ENGINE = InnoDB AUTO_INCREMENT = 1 DEFAULT CHARSET = utf8mb4 COMMENT ='AT transaction mode undo table';
 
 
 -- ----------------------------------------------------------------------------------------------
@@ -104,6 +128,18 @@ INSERT INTO `roles` (`role_id`, `role_code`, `role_name`) VALUES
 -- 初始化一个超级管理员，设其 user_id 为 1
 INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (1, 1);
 
+-- Seata AT 模式 undo_log 表 (适用于 Seata 1.5.x 版本)
+CREATE TABLE IF NOT EXISTS `undo_log` (
+    `branch_id` BIGINT NOT NULL COMMENT 'branch transaction id',
+    `xid` VARCHAR(128) NOT NULL COMMENT 'global transaction id',
+    `context` VARCHAR(128) NOT NULL COMMENT 'undo_log context,such as serialization',
+    `rollback_info` LONGBLOB NOT NULL COMMENT 'rollback info',
+    `log_status` INT NOT NULL COMMENT '0:normal status,1:defense status',
+    `log_created` DATETIME(6) NOT NULL COMMENT 'create datetime',
+    `log_modified` DATETIME(6) NOT NULL COMMENT 'modify datetime',
+    UNIQUE KEY `ux_undo_log` (`xid`, `branch_id`)
+) ENGINE = InnoDB AUTO_INCREMENT = 1 DEFAULT CHARSET = utf8mb4 COMMENT ='AT transaction mode undo table';
+
 
 -- ----------------------------------------------------------------------------------------------
 --  divide
@@ -126,3 +162,15 @@ CREATE TABLE operation_logs (
                                 KEY `idx_user_id_action` (`user_id`, `action`),
                                 KEY `idx_gmt_create` (`gmt_create`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
+-- Seata AT 模式 undo_log 表 (适用于 Seata 1.5.x 版本)
+CREATE TABLE IF NOT EXISTS `undo_log` (
+    `branch_id` BIGINT NOT NULL COMMENT 'branch transaction id',
+    `xid` VARCHAR(128) NOT NULL COMMENT 'global transaction id',
+    `context` VARCHAR(128) NOT NULL COMMENT 'undo_log context,such as serialization',
+    `rollback_info` LONGBLOB NOT NULL COMMENT 'rollback info',
+    `log_status` INT NOT NULL COMMENT '0:normal status,1:defense status',
+    `log_created` DATETIME(6) NOT NULL COMMENT 'create datetime',
+    `log_modified` DATETIME(6) NOT NULL COMMENT 'modify datetime',
+    UNIQUE KEY `ux_undo_log` (`xid`, `branch_id`)
+) ENGINE = InnoDB AUTO_INCREMENT = 1 DEFAULT CHARSET = utf8mb4 COMMENT ='AT transaction mode undo table';
